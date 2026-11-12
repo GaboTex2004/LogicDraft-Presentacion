@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     ai_request_timeout: float = Field(default=420, gt=0)
     ollama_request_timeout: float | None = Field(default=None, gt=0)
     gemini_request_timeout: float | None = Field(default=None, gt=0)
+    text_ai_queue_max_pending: int = Field(default=8, ge=0, le=100)
+    text_ai_queue_wait_timeout: float = Field(default=120, gt=0, le=590)
+    text_ai_total_timeout: float = Field(default=570, gt=0, le=590)
     ai_service_host: str = "0.0.0.0"
     ai_service_port: int = Field(default=8000, ge=1, le=65535)
     

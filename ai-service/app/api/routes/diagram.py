@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from app.core.config import get_settings
 from app.schemas.diagram import InterpretRequest, InterpretResponse
 from app.services.ai_service import AIService
+from app.services.text_ai_queue import get_text_ai_queue
 from app.services.diagram_ai_service import DiagramAIService
 from app.services.diagram_ai_service import (
     DiagramIncompleteResponseError, DiagramJsonError, DiagramStructureError,
@@ -19,8 +20,11 @@ router = APIRouter(prefix="/ai/diagram", tags=["ai"])
 @router.post("/interpret", response_model=InterpretResponse)
 async def interpret(request: InterpretRequest) -> InterpretResponse:
     try:
-        return await DiagramAIService(AIService.from_settings(get_settings())).interpret(
-            request.prompt, request.diagram, request.selection)
+        service = DiagramAIService(AIService.from_settings(get_settings()))
+        return await get_text_ai_queue().execute(
+            lambda: service.interpret(request.prompt, request.diagram, request.selection),
+            "diagram",
+        )
     except (ProviderConfigurationError, ProviderConnectionError, ProviderModelNotFoundError):
         raise HTTPException(503, "El proveedor de IA no esta disponible.") from None
     except ProviderTimeoutError:

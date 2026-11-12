@@ -4,6 +4,7 @@ from app.schemas.agent import AgentAskRequest, AgentAskResponse
 from app.services.agent_service import AgentService
 from app.skills.diagram.semantic_safety import SemanticSafetyError
 from app.services.ai_service import AIService
+from app.services.text_ai_queue import get_text_ai_queue
 from app.services.providers.base import (
     ProviderConfigurationError, ProviderConnectionError, ProviderModelNotFoundError,
     ProviderResponseError, ProviderTimeoutError,
@@ -15,7 +16,13 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 @router.post("/ask", response_model=AgentAskResponse)
 async def ask(request: AgentAskRequest) -> AgentAskResponse:
     try:
-        return await AgentService(AIService.from_settings(get_settings())).ask(request)
+        service = AgentService(AIService.from_settings(get_settings()))
+        if not service.requires_text_ai(request):
+            return await service.ask(request)
+        return await get_text_ai_queue().execute(
+            lambda: service.ask(request),
+            "agent",
+        )
     except (ProviderConfigurationError, ProviderConnectionError, ProviderModelNotFoundError):
         raise HTTPException(503, "El proveedor de IA no esta disponible.") from None
     except ProviderTimeoutError:

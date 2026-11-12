@@ -9,6 +9,7 @@ from app.services.providers.base import (
     ProviderResponseError, ProviderTimeoutError,
 )
 from app.services.runtime_ai_service import RuntimeAIService
+from app.services.text_ai_queue import get_text_ai_queue
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
@@ -20,7 +21,11 @@ async def interpret(request: RuntimeInterpretRequest) -> RuntimeInterpretRespons
     except ValidationError:
         raise HTTPException(422, "Esquema de aplicacion invalido.") from None
     try:
-        return await RuntimeAIService(AIService.from_settings(get_settings())).interpret(request.text, schema)
+        service = RuntimeAIService(AIService.from_settings(get_settings()))
+        return await get_text_ai_queue().execute(
+            lambda: service.interpret(request.text, schema),
+            "runtime",
+        )
     except (ProviderConfigurationError, ProviderConnectionError, ProviderModelNotFoundError):
         raise HTTPException(503, "El proveedor de IA no esta disponible.") from None
     except ProviderTimeoutError:

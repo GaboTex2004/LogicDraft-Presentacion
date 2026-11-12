@@ -931,6 +931,15 @@ class AgentService:
             1,
         )
 
+    def requires_text_ai(self, request: AgentAskRequest) -> bool:
+        """Return False only when the deterministic planner can finish the request."""
+        normalized_message = _normalize_agent_mention(request.message)
+        if classify_agent_intent(normalized_message) is not AgentIntent.MODIFICATION:
+            return True
+        normalized_request = request.model_copy(update={"message": normalized_message})
+        diagram = _build_agent_diagram_context(normalized_request)
+        return plan_execution(normalized_message, diagram) is None
+
     async def ask(self, request: AgentAskRequest) -> AgentAskResponse:
         normalized_message = _normalize_agent_mention(request.message)
 

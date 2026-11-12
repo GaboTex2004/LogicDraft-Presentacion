@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, status
 from app.core.config import get_settings
 from app.schemas.ai import GenerateRequest, GenerateResponse
 from app.services.ai_service import AIService
+from app.services.text_ai_queue import get_text_ai_queue
 from app.services.providers.base import (
     ProviderConfigurationError,
     ProviderConnectionError,
@@ -18,7 +19,10 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 async def generate(request: GenerateRequest) -> GenerateResponse:
     try:
         service = AIService.from_settings(get_settings())
-        result = await service.generate(request.prompt)
+        result = await get_text_ai_queue().execute(
+            lambda: service.generate(request.prompt),
+            "generate",
+        )
     except ProviderConfigurationError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from None
     except ProviderConnectionError as exc:

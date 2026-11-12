@@ -100,6 +100,9 @@ OLLAMA_MODEL=llama3.2:3b
 AI_REQUEST_TIMEOUT=420
 OLLAMA_REQUEST_TIMEOUT=420
 GEMINI_REQUEST_TIMEOUT=90
+TEXT_AI_QUEUE_MAX_PENDING=8
+TEXT_AI_QUEUE_WAIT_TIMEOUT=120
+TEXT_AI_TOTAL_TIMEOUT=570
 AI_SERVICE_HOST=0.0.0.0
 AI_SERVICE_PORT=8000
 GROQ_API_KEY=
@@ -114,9 +117,18 @@ GEMINI_MODEL=gemini-3.5-flash-lite
 - `OLLAMA_REQUEST_TIMEOUT` y `GEMINI_REQUEST_TIMEOUT`: timeouts independientes para texto.
 - `AI_REQUEST_TIMEOUT`: valor compatible usado cuando no se define el timeout específico.
 - `GEMINI_API_KEY` y `GEMINI_MODEL`: credencial inyectada por entorno y modelo secundario; la clave nunca debe versionarse.
+- `TEXT_AI_QUEUE_MAX_PENDING`: máximo de solicitudes textuales en espera; no cuenta la solicitud activa.
+- `TEXT_AI_QUEUE_WAIT_TIMEOUT`: espera máxima en segundos antes de rechazar una solicitud encolada.
+- `TEXT_AI_TOTAL_TIMEOUT`: presupuesto total desde el ingreso hasta la finalización; debe permanecer por debajo del timeout de 600 segundos del backend.
 - `AI_SERVICE_HOST` y `AI_SERVICE_PORT`: interfaz y puerto configurables.
 - `GROQ_API_KEY`: secreto usado únicamente por el ai-service para transcribir audio.
 - `GROQ_WHISPER_MODEL`: modelo de transcripción; por defecto `whisper-large-v3-turbo`.
+
+### Cola de IA textual
+
+Las rutas textuales de agente, interpretación de diagramas, runtime y generación genérica comparten una cola FIFO acotada. Sólo un flujo textual se ejecuta a la vez y conserva el turno durante reparaciones y fallback. Las propuestas resueltas completamente por el planificador determinista del agente no ingresan a la cola. Cuando no hay capacidad se responde HTTP 429; una espera o ejecución que agota su presupuesto responde HTTP 504.
+
+La cola vive en memoria y coordina únicamente el proceso Python actual. El contenedor incluido inicia un solo worker Uvicorn, por lo que serializa todas las solicitudes de esa instancia. Si se configuran varios workers o réplicas, cada proceso tendrá su propia cola y podrá existir una ejecución activa por proceso. Una exclusión global entre procesos requeriría un coordinador externo, por ejemplo Redis o un broker, y no forma parte de esta implementación.
 
 Para seleccionar un modelo, se instala manualmente y luego se configura el mismo nombre:
 
