@@ -92,7 +92,17 @@ class RuntimeAIService:
             parsed = parse_llm_json_response(raw)
             result = RuntimeInterpretResponse.model_validate(parsed)
         except (ValueError, TypeError):
-            return RuntimeInterpretResponse(status="NOT_UNDERSTOOD", message="No pude interpretar el comando.")
+            fallback_generate = getattr(self._ai, "generate_fallback", None)
+            if not getattr(self._ai, "has_fallback", callable(fallback_generate)):
+                fallback_generate = None
+            if not callable(fallback_generate):
+                return RuntimeInterpretResponse(status="NOT_UNDERSTOOD", message="No pude interpretar el comando.")
+            try:
+                fallback_raw = await fallback_generate(prompt, response_schema)
+                parsed = parse_llm_json_response(fallback_raw)
+                result = RuntimeInterpretResponse.model_validate(parsed)
+            except (ValueError, TypeError):
+                return RuntimeInterpretResponse(status="NOT_UNDERSTOOD", message="No pude interpretar el comando.")
         if result.operation is not None and result.operation != "CREATE":
             return RuntimeInterpretResponse(
                 status="NOT_UNDERSTOOD",

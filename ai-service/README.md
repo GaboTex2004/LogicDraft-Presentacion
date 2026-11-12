@@ -46,16 +46,17 @@ La ruta real es `POST http://localhost:8000/api/runtime/interpret`. Recibe exact
 
 `schema` es un JSON serializado como string y proviene del `ApplicationSchema` del backend generado. Una respuesta CREATE válida contiene `status`, `operation`, `entity`, `values`, `relations` y `message`. Para probarla sin Flutter puede usarse `/docs` o enviar ese cuerpo directamente; no debe enviarse únicamente `text` porque el ai-service no lee clases Java ni conoce el esquema exportado por otro medio.
 
-Microservicio FastAPI que aísla la integración de LogicDraft con proveedores de IA. Actualmente ofrece health check y generación genérica de texto mediante un Ollama instalado localmente. No modifica diagramas ni descarga modelos.
+Microservicio FastAPI que aísla la integración de LogicDraft con proveedores de IA. La IA textual usa Ollama como proveedor principal y Gemini como secundario automático. Gemini sigue siendo el proveedor exclusivo para interpretar imágenes. El servicio no modifica diagramas ni descarga modelos.
 
 ## Implementado
 
 - Configuración desde `ai-service/.env` mediante `pydantic-settings`.
-- Abstracción `BaseAIProvider` e implementación `OllamaProvider` con `httpx`.
+- Abstracción `BaseAIProvider` e implementaciones para Ollama y Gemini.
 - Servicio `AIService` independiente de HTTP.
 - Health check tolerante a una caída de Ollama.
 - Generación genérica de texto sin intervenir en diagramas.
 - Errores controlados de configuración, conexión, timeout, modelo inexistente y respuesta inválida.
+- Fallback sanitizado a Gemini ante fallos técnicos o lotes JSON inválidos/incompletos; los rechazos de seguridad o ambigüedad no activan fallback.
 
 ## Estructura
 
@@ -65,7 +66,7 @@ app/
 ├── core/config.py       # Configuración de entorno
 ├── schemas/ai.py        # Contratos Pydantic
 ├── services/ai_service.py
-└── services/providers/  # Contrato base y proveedor Ollama
+└── services/providers/  # Contrato base y proveedores Ollama/Gemini
 ```
 
 La ubicación existente `services/providers` se conserva porque ya separa correctamente la orquestación de la integración externa.
@@ -95,18 +96,24 @@ En producción, estas variables deben proporcionarse mediante el entorno del des
 ```dotenv
 AI_PROVIDER=ollama
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=
-AI_REQUEST_TIMEOUT=60
+OLLAMA_MODEL=llama3.2:3b
+AI_REQUEST_TIMEOUT=420
+OLLAMA_REQUEST_TIMEOUT=420
+GEMINI_REQUEST_TIMEOUT=90
 AI_SERVICE_HOST=0.0.0.0
 AI_SERVICE_PORT=8000
-GROQ_API_KEY=tu_clave_real_aqui
+GROQ_API_KEY=
 GROQ_WHISPER_MODEL=whisper-large-v3-turbo
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
-- `AI_PROVIDER`: proveedor activo; actualmente solo admite `ollama`.
+- `AI_PROVIDER`: proveedor textual principal. Para el flujo con fallback debe ser `ollama`; `gemini` se conserva como modo directo compatible.
 - `OLLAMA_BASE_URL`: URL de Ollama.
 - `OLLAMA_MODEL`: nombre exacto del modelo instalado en esta computadora.
-- `AI_REQUEST_TIMEOUT`: timeout en segundos para Ollama.
+- `OLLAMA_REQUEST_TIMEOUT` y `GEMINI_REQUEST_TIMEOUT`: timeouts independientes para texto.
+- `AI_REQUEST_TIMEOUT`: valor compatible usado cuando no se define el timeout específico.
+- `GEMINI_API_KEY` y `GEMINI_MODEL`: credencial inyectada por entorno y modelo secundario; la clave nunca debe versionarse.
 - `AI_SERVICE_HOST` y `AI_SERVICE_PORT`: interfaz y puerto configurables.
 - `GROQ_API_KEY`: secreto usado únicamente por el ai-service para transcribir audio.
 - `GROQ_WHISPER_MODEL`: modelo de transcripción; por defecto `whisper-large-v3-turbo`.
@@ -114,12 +121,12 @@ GROQ_WHISPER_MODEL=whisper-large-v3-turbo
 Para seleccionar un modelo, se instala manualmente y luego se configura el mismo nombre:
 
 ```powershell
-ollama pull llama3.2
+ollama pull llama3.2:3b
 ollama serve
 ```
 
 ```dotenv
-OLLAMA_MODEL=llama3.2
+OLLAMA_MODEL=llama3.2:3b
 ```
 
 El servicio nunca descarga modelos automáticamente.
@@ -278,7 +285,7 @@ identificable se permite operations vacio.
 }
 ```
 
-`providerAvailable` indica si la API de Ollama responde. Ollama apagado no hace fallar el health de FastAPI.
+`providerAvailable` indica si el proveedor principal (Ollama) responde. Ollama apagado no hace fallar el health de FastAPI; las solicitudes textuales intentarán Gemini si está configurado.
 
 `POST /api/ai/generate` recibe:
 

@@ -382,7 +382,15 @@ class DiagramAIService:
             )
         schema = InterpretResponse.model_json_schema()
         conversion_expectation = extract_conversion_expectation(prompt)
-        if diagram is not None and conversion_expectation is not None:
+        if conversion_expectation is not None:
+            if conversion_expectation.ambiguous_attribute:
+                raise DiagramIncompleteResponseError(
+                    "La conversion requiere el tipo explicito de cada atributo propio."
+                )
+            if diagram is None:
+                raise DiagramIncompleteResponseError(
+                    "La conversion requiere el contexto actual del diagrama."
+                )
             candidates = [
                 {
                     "relationshipId": relationship.id,
@@ -394,6 +402,10 @@ class DiagramAIService:
                 and relationship.sourceCardinality in ("ZERO_MANY", "ONE_MANY")
                 and relationship.targetCardinality in ("ZERO_MANY", "ONE_MANY")
             ]
+            if len(candidates) != 1:
+                raise DiagramIncompleteResponseError(
+                    "La conversion requiere una unica relacion N:M no ambigua."
+                )
             instruction = (
                 "Interpreta una conversion N:M de LogicDraft. Devuelve SOLO JSON valido, sin Markdown. "
                 "La raiz es operations. Emite exactamente una operacion "
@@ -413,7 +425,7 @@ class DiagramAIService:
             attribute_schema.update({"minItems": attribute_count, "maxItems": attribute_count})
         try:
             initial = parse_operations(await self.ai.generate(instruction, schema))
-            _log_batch("ollama_initial", initial)
+            _log_batch("primary_initial", initial)
             completed = validate_completeness(prompt, diagram, initial)
             _log_batch("ai_service_output", completed)
             return completed
@@ -423,7 +435,7 @@ class DiagramAIService:
             repair_prompt = build_repair_prompt(prompt, summary, previous, diagram)
             try:
                 repaired = parse_operations(await self.ai.generate(repair_prompt, schema))
-                _log_batch("ollama_repair", repaired)
+                _log_batch("primary_repair", repaired)
                 try:
                     completed = validate_completeness(prompt, diagram, repaired)
                 except DiagramIncompleteError:
@@ -431,9 +443,35 @@ class DiagramAIService:
                     completed = validate_completeness(prompt, diagram, merged)
                 _log_batch("ai_service_output", completed)
                 return completed
-            except DiagramIncompleteError as final_error:
-                raise DiagramIncompleteResponseError(
-                    "El modelo no devolvio un lote completo tras repararlo: " + final_error.reason
-                ) from None
-            except DiagramOutputValidationError:
+            except (DiagramIncompleteError, DiagramOutputValidationError) as final_error:
+                fallback_generate = getattr(self.ai, "generate_fallback", None)
+                if not getattr(self.ai, "has_fallback", callable(fallback_generate)):
+                    fallback_generate = None
+                if callable(fallback_generate):
+                    try:
+                        fallback_response = parse_operations(
+                            await fallback_generate(repair_prompt, schema)
+                        )
+                        _log_batch("fallback", fallback_response)
+                        try:
+                            completed = validate_completeness(
+                                prompt, diagram, fallback_response
+                            )
+                        except DiagramIncompleteError:
+                            merged = _merge_previous_and_repaired(
+                                previous, fallback_response, prompt, diagram
+                            )
+                            completed = validate_completeness(prompt, diagram, merged)
+                        _log_batch("ai_service_output", completed)
+                        return completed
+                    except DiagramIncompleteError as fallback_error:
+                        raise DiagramIncompleteResponseError(
+                            "Los proveedores no devolvieron un lote completo: "
+                            + fallback_error.reason
+                        ) from None
+                if isinstance(final_error, DiagramIncompleteError):
+                    raise DiagramIncompleteResponseError(
+                        "El modelo no devolvio un lote completo tras repararlo: "
+                        + final_error.reason
+                    ) from None
                 raise

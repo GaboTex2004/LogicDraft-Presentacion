@@ -254,12 +254,15 @@ class AgentService:
             + json.dumps(request.message, ensure_ascii=False)
         )
 
-        reason = (
-            "Ollama no identifico todas las clases solicitadas."
-        )
+        reason = "El proveedor principal no identifico todas las clases solicitadas."
 
-        for attempt in range(2):
-            raw = await self.ai.generate(prompt, schema)
+        fallback_generate = getattr(self.ai, "generate_fallback", None)
+        if not getattr(self.ai, "has_fallback", callable(fallback_generate)):
+            fallback_generate = None
+        attempt_count = 3 if callable(fallback_generate) else 2
+        for attempt in range(attempt_count):
+            generator = fallback_generate if attempt == 2 else self.ai.generate
+            raw = await generator(prompt, schema)
 
             try:
                 data = parse_llm_json_response(raw)
@@ -367,7 +370,7 @@ class AgentService:
                 operations=resolved.operations,
                 intent="MUTATION",
                 outcome="PROPOSAL",
-                repairAttempts=attempt,
+                repairAttempts=min(attempt, 1),
             )
 
         return _clarification(reason, 1)
@@ -571,8 +574,13 @@ class AgentService:
             return found.group(0)
 
         reason = "No se pudo resolver la estructura completa."
-        for attempt in range(2):
-            raw = await self.ai.generate(prompt, schema)
+        fallback_generate = getattr(self.ai, "generate_fallback", None)
+        if not getattr(self.ai, "has_fallback", callable(fallback_generate)):
+            fallback_generate = None
+        attempt_count = 3 if callable(fallback_generate) else 2
+        for attempt in range(attempt_count):
+            generator = fallback_generate if attempt == 2 else self.ai.generate
+            raw = await generator(prompt, schema)
 
             try:
                 data = parse_llm_json_response(raw)
@@ -897,7 +905,7 @@ class AgentService:
                     operations=response.operations,
                     intent="MUTATION",
                     outcome="PROPOSAL",
-                    repairAttempts=attempt,
+                    repairAttempts=min(attempt, 1),
                 )
 
             except (ValueError, TypeError, KeyError) as error:
@@ -918,7 +926,7 @@ class AgentService:
                     )
 
         return _clarification(
-            "Ollama no identifico una propuesta completa "
+            "Los proveedores no identificaron una propuesta completa "
             "de clases, atributos y relaciones. " + reason,
             1,
         )
@@ -1030,8 +1038,13 @@ class AgentService:
             schema["properties"]["operations"]["items"] = {"oneOf": allowed}
             schema["properties"]["operations"]["maxItems"] = len(plan.operations)
         reason = "Especifica los elementos y la modificacion requerida."
-        for attempt in range(2):
-            raw = await self.ai.generate(prompt, schema)
+        fallback_generate = getattr(self.ai, "generate_fallback", None)
+        if not getattr(self.ai, "has_fallback", callable(fallback_generate)):
+            fallback_generate = None
+        attempt_count = 3 if callable(fallback_generate) else 2
+        for attempt in range(attempt_count):
+            generator = fallback_generate if attempt == 2 else self.ai.generate
+            raw = await generator(prompt, schema)
             try:
                 parsed = normalize_type_aliases(parse_llm_json_response(raw))
                 # Repair may use the existing operations-only schema; all other fields stay strict.
@@ -1063,7 +1076,7 @@ class AgentService:
                     count = len(validated.operations)
                     logger.info("Agent execution outcome=PROPOSAL operations=%d repairAttempts=%d", count, attempt)
                     return AgentAskResponse(answer=f"Propuesta de modificaciones: {count} operaciones. Revisa cada cambio y confirma para aplicarlo.",
-                                            operations=validated.operations, intent="MUTATION", outcome="PROPOSAL", repairAttempts=attempt)
+                                            operations=validated.operations, intent="MUTATION", outcome="PROPOSAL", repairAttempts=min(attempt, 1))
             logger.info("Agent execution validation failed attempt=%d", attempt)
             if attempt == 0:
                 prompt += ("\nREPARACION 1/1: el lote anterior fue rechazado. " + reason
