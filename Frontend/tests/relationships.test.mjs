@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { cardinalities, CARDINALITY_LABELS, normalizeRelationshipEdge, equivalentRelationship, commitRelationshipEdge, removeRelationshipEdges, manualRelationshipData, visualAggregationEnd } from '../src/features/diagram/services/relationshipCardinality.ts'
+import { cardinalities, CARDINALITY_LABELS, normalizeRelationshipEdge, equivalentRelationship, commitRelationshipEdge, removeRelationshipEdges, manualRelationshipData, mergeRelationshipDataChanges, visualAggregationEnd } from '../src/features/diagram/services/relationshipCardinality.ts'
 import { applyDiagramOperations } from '../src/features/diagram/services/applyDiagramOperations.ts'
 import { deriveJoinTable } from '../src/features/diagram/services/derivedJoinTable.ts'
 
@@ -43,6 +43,24 @@ test('visual diamond defaults to target and respects both explicit ends without 
   assert.equal(visualAggregationEnd({ relationKind: 'AGGREGATION', aggregationEnd: 'SOURCE' }), 'SOURCE')
   assert.equal(visualAggregationEnd({ relationKind: 'COMPOSITION', aggregationEnd: 'TARGET' }), 'TARGET')
   assert.deepEqual(missing, before)
+})
+test('changing UML kind removes stale diamond ends and supplies only missing aggregate ends', () => {
+  assert.deepEqual(
+    mergeRelationshipDataChanges({ relationKind: 'COMPOSITION', aggregationEnd: 'TARGET' }, { relationKind: 'ASSOCIATION' }),
+    { relationKind: 'ASSOCIATION' },
+  )
+  assert.deepEqual(
+    mergeRelationshipDataChanges({ relationKind: 'AGGREGATION', aggregationEnd: 'TARGET' }, { relationKind: 'GENERALIZATION' }),
+    { relationKind: 'GENERALIZATION' },
+  )
+  assert.deepEqual(
+    mergeRelationshipDataChanges({ relationKind: 'ASSOCIATION' }, { relationKind: 'COMPOSITION' }),
+    { relationKind: 'COMPOSITION', aggregationEnd: 'TARGET' },
+  )
+  assert.deepEqual(
+    mergeRelationshipDataChanges({ relationKind: 'AGGREGATION', aggregationEnd: 'SOURCE' }, { relationKind: 'COMPOSITION' }),
+    { relationKind: 'COMPOSITION', aggregationEnd: 'SOURCE' },
+  )
 })
 test('relationship renderer keeps diamonds aligned to endpoints and other UML markers at target', () => {
   const source = readFileSync(new URL('../src/features/diagram/components/RelationshipEdge.tsx', import.meta.url), 'utf8')

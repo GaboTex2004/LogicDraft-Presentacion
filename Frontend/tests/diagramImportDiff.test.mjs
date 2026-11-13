@@ -130,6 +130,29 @@ test('relationship cardinality changes are detected and reversed orientation rem
   assert.equal(merged.edges.find(item => item.id === 'local-user-sale').data.targetCardinality, 'ONE_ONE')
 })
 
+test('aggregate import diff uses target fallback while preserving explicit source semantics', () => {
+  const nodes = [node('a', 'A', [], 0), node('b', 'B', [], 300)]
+  const aggregate = aggregationEnd => ({
+    id: 'aggregate', type: 'relationship', source: 'a', target: 'b',
+    data: {
+      relationKind: 'AGGREGATION', sourceCardinality: 'ONE_ONE', targetCardinality: 'ONE_ONE',
+      ...(aggregationEnd ? { aggregationEnd } : {}),
+    },
+  })
+
+  const missingMatchesTarget = computeDiagramImportDiff(
+    { version: 2, nodes, edges: [aggregate()] },
+    { version: 2, nodes: structuredClone(nodes), edges: [aggregate('TARGET')] },
+  )
+  assert.equal(missingMatchesTarget.relations[0].status, 'unchanged')
+
+  const explicitSourceIsNotReinterpreted = computeDiagramImportDiff(
+    { version: 2, nodes, edges: [aggregate('SOURCE')] },
+    { version: 2, nodes: structuredClone(nodes), edges: [aggregate('TARGET')] },
+  )
+  assert.equal(explicitSourceIsNotReinterpreted.relations[0].status, 'modified')
+})
+
 test('deselecting an AssociationClass metadata change preserves the current structure', () => {
   const imported = importedDocument()
   const initialDiff = computeDiagramImportDiff(currentDocument(), imported)

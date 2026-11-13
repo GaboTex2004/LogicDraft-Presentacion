@@ -3,6 +3,7 @@ import { validateDiagramDocument } from "./diagramDocumentValidation.ts";
 import {
   cardinalities,
   normalizeRelationshipEdge,
+  visualAggregationEnd,
 } from "./relationshipCardinality.ts";
 import type {
   DiagramDocument,
@@ -301,8 +302,8 @@ function sameRelationData(
   const aggregate =
     currentKind === "AGGREGATION" || currentKind === "COMPOSITION";
 
-  const currentEnd = current.data?.aggregationEnd ?? "SOURCE";
-  const incomingEnd = imported.data?.aggregationEnd ?? "SOURCE";
+  const currentEnd = visualAggregationEnd(current.data);
+  const incomingEnd = visualAggregationEnd(imported.data);
 
   const remappedEnd = reversed
     ? incomingEnd === "SOURCE"

@@ -41,6 +41,24 @@ export function manualRelationshipData(relationKind: UmlRelationKind): Relations
     ...(['AGGREGATION', 'COMPOSITION'].includes(relationKind) ? { aggregationEnd: 'TARGET' as const } : {}),
   }
 }
+
+export function mergeRelationshipDataChanges(
+  current: RelationshipData | undefined,
+  changes: Partial<RelationshipData>,
+): RelationshipData {
+  const next: RelationshipData = { ...current, ...changes }
+  for (const key of Object.keys(changes) as Array<keyof RelationshipData>) {
+    if (changes[key] === undefined) delete next[key]
+  }
+  if (changes.relationKind !== undefined) {
+    if (changes.relationKind === 'AGGREGATION' || changes.relationKind === 'COMPOSITION') {
+      next.aggregationEnd ??= 'TARGET'
+    } else {
+      delete next.aggregationEnd
+    }
+  }
+  return next
+}
 export function equivalentRelationship(a: DiagramEdge, b: DiagramEdge): boolean {
   const ac = cardinalities(a.data), bc = cardinalities(b.data)
   const an = typeof a.data?.name === 'string' ? a.data.name.trim().toLocaleLowerCase() : ''

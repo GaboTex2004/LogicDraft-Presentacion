@@ -137,6 +137,7 @@ import { updateEntityAttribute } from "../services/attributeEditing";
 import {
   commitRelationshipEdge,
   manualRelationshipData,
+  mergeRelationshipDataChanges,
   normalizeRelationshipEdge,
 } from "../services/relationshipCardinality";
 import type {
@@ -2929,12 +2930,10 @@ function DiagramEditorCanvas({
           const previousEdgesSnapshot = edgesRef.current;
           const alreadyOwned = lockStore.areAllOwnedBySelf(edgeLockIds);
           lastLockActivityAtRef.current = Date.now();
-          const nextData = { ...selectedEdge.data, ...changes };
-          for (const key of Object.keys(changes) as Array<
-            keyof typeof changes
-          >) {
-            if (changes[key] === undefined) delete nextData[key];
-          }
+          const nextData = mergeRelationshipDataChanges(
+            selectedEdge.data,
+            changes,
+          );
           try {
             validateDiagramDocument(
               serializeDocument(
