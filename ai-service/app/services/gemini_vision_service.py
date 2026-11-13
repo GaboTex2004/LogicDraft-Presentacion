@@ -77,8 +77,11 @@ REGLAS CRITICAS PARA RELACIONES UML:
   target=proveedor, sin multiplicidades.
 No confundas un triangulo hueco con un rombo vacio ni una flecha abierta con un
 triangulo. Sigue cada linea hasta las dos cajas antes de decidir sus extremos.
-En toda ADD_RELATIONSHIP de tipo ASSOCIATION, AGGREGATION o COMPOSITION incluye
-sourceMultiplicity y targetMultiplicity solo cuando sean visibles y legibles.
+Para AGGREGATION y COMPOSITION emite la relacion y conserva relationKind y
+aggregationEnd aunque no haya multiplicidades visibles; en ese caso omite por completo
+sourceMultiplicity y targetMultiplicity. Cuando una multiplicidad sea visible,
+transcribela exactamente: no intercambies limites ni corrijas valores invalidos como
+"1..0" a "0..1". Para ASSOCIATION incluye ambas multiplicidades visibles y legibles.
 aggregationEnd se usa unicamente para AGGREGATION y COMPOSITION, y solo cuando la
 ubicacion del rombo sea inequivoca. Si una multiplicidad, el tipo, un extremo o el
 simbolo no es legible, omite el campo incierto (o la relacion completa si no puedes

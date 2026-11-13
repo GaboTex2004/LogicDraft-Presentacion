@@ -11,7 +11,7 @@ import {
   type RelationshipData,
   UML_RELATION_KINDS,
 } from "../types/diagram.types";
-import { cardinalities, CARDINALITY_LABELS } from '../services/relationshipCardinality';
+import { cardinalities, CARDINALITY_LABELS, hasSpecifiedRelationshipMultiplicity } from '../services/relationshipCardinality';
 import type { DerivedJoinTable } from '../services/derivedJoinTable';
 import { formatLockedByMessage } from '../../collaboration/services/elementLocks';
 
@@ -119,6 +119,7 @@ export function DiagramPropertiesPanel({
 
   if (edge) {
     const cards = cardinalities(edge.data);
+    const multiplicitySpecified = hasSpecifiedRelationshipMultiplicity(edge.data);
     return <aside className="diagram-properties">
       <header><span>Propiedades de relación</span><button className="diagram-panel-close" type="button" aria-label="Cerrar propiedades" onClick={onClose}>×</button></header>
       <div className={`properties-content${isLockedByOther ? ' is-locked-readonly' : ''}`} onFocusCapture={handleContentFocusCapture}>
@@ -178,7 +179,7 @@ export function DiagramPropertiesPanel({
               onChangeRelationshipData?.({ name: event.target.value || undefined });
             }} />
         </label>
-        {(['sourceCardinality', 'targetCardinality'] as const).map(end => <label key={end}>
+        {multiplicitySpecified ? (['sourceCardinality', 'targetCardinality'] as const).map(end => <label key={end}>
           Cardinalidad {end === 'sourceCardinality' ? 'origen' : 'destino'}
           <select ref={target(end === 'sourceCardinality' ? 'relation.source' : 'relation.target', edge.id, `Cardinalidad ${end === 'sourceCardinality' ? 'origen' : 'destino'}`, true, !isLockedByOther && !structuralRelationship)} value={cards[end]} disabled={structuralRelationship}
             aria-disabled={isLockedByOther || structuralRelationship || undefined}
@@ -197,9 +198,9 @@ export function DiagramPropertiesPanel({
             }}>
             {DIAGRAM_CARDINALITIES.map(card => <option key={card} value={card}>{CARDINALITY_LABELS[card]}</option>)}
           </select>
-        </label>)}
+        </label>) : <p className="derived-table-help">Multiplicidades no especificadas en el diagrama importado.</p>}
         {structuralRelationship && <p className="derived-table-help">Esta relacion mantiene la estructura de una entidad asociativa y no puede editarse ni eliminarse individualmente.</p>}
-        {(['sourceCardinality', 'targetCardinality'] as const).every(end => cards[end].endsWith('MANY')) && <>
+        {multiplicitySpecified && (['sourceCardinality', 'targetCardinality'] as const).every(end => cards[end].endsWith('MANY')) && <>
           <label>Tabla intermedia
             <input maxLength={100} value={typeof edge.data?.joinTableName === 'string' ? edge.data.joinTableName : ''}
               disabled={structuralRelationship}

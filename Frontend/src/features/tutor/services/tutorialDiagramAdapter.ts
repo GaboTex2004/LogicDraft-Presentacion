@@ -1,5 +1,5 @@
 import type { DiagramEdge, EntityFlowNode } from '../../diagram/types/diagram.types.ts'
-import { cardinalities } from '../../diagram/services/relationshipCardinality.ts'
+import { cardinalities, hasSpecifiedRelationshipMultiplicity } from '../../diagram/services/relationshipCardinality.ts'
 import type { ObservedTutorialItem } from '../types/tutorialRuntime.types.ts'
 import type { TutorAction } from './tutorialRuntimeStore.ts'
 
@@ -14,7 +14,10 @@ export function tutorialDiagramItems(workspaceId: number, projectId: number, nod
     ]),
     ...edges.map(edge => ({ ...scope, kind: 'relationship' as const, id: edge.id, sourceId: edge.source, targetId: edge.target,
       relationKind: typeof edge.data?.relationKind === 'string' ? edge.data.relationKind : 'ASSOCIATION', structural: structural.has(edge.id),
-      locked: locked(edge.id) || locked(edge.source) || locked(edge.target), fields: { name: typeof edge.data?.name === 'string' ? edge.data.name : '', ...cardinalities(edge.data) } })),
+      locked: locked(edge.id) || locked(edge.source) || locked(edge.target), fields: {
+        name: typeof edge.data?.name === 'string' ? edge.data.name : '',
+        ...(hasSpecifiedRelationshipMultiplicity(edge.data) ? cardinalities(edge.data) : {}),
+      } })),
   ]
 }
 

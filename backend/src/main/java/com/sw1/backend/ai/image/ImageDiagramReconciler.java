@@ -806,19 +806,30 @@ public final class ImageDiagramReconciler {
         data.put("relationKind", kind);
         if (observed.get("name") != null) data.put("name", observed.get("name"));
         if (symmetric) {
-            for (String end : List.of("source", "target")) {
-                String rawValue = (String) observed.get(end + "Multiplicity");
-                String value = rawValue == null ? null : canonicalMultiplicity(rawValue);
-                if (value == null || !value.matches("(?:\\d+|\\*|\\d+\\.\\.(?:\\d+|\\*))")) {
+            boolean aggregateWithoutMultiplicities = Set.of("AGGREGATION", "COMPOSITION").contains(kind)
+                    && observed.get("sourceMultiplicity") == null
+                    && observed.get("targetMultiplicity") == null;
+            if (!aggregateWithoutMultiplicities) {
+                Map<String, String> multiplicities = new LinkedHashMap<>();
+                for (String end : List.of("source", "target")) {
+                    String rawValue = (String) observed.get(end + "Multiplicity");
+                    if (rawValue == null) continue;
+                    String value = canonicalMultiplicity(rawValue);
+                    if (!value.matches("(?:\\d+|\\*|\\d+\\.\\.(?:\\d+|\\*))")) {
+                        pendingRelationship(label, "multiplicidad ausente o ilegible"); return;
+                    }
+                    if (value.contains("..") && !value.endsWith("*")) {
+                        String[] bounds = value.split("\\.\\.");
+                        try {
+                            if (Long.parseLong(bounds[0]) > Long.parseLong(bounds[1])) throw new NumberFormatException();
+                        } catch (NumberFormatException invalid) { conflicts.add("Intervalo invalido: " + label); return; }
+                    }
+                    multiplicities.put(end, value);
+                }
+                if (multiplicities.size() != 2) {
                     pendingRelationship(label, "multiplicidad ausente o ilegible"); return;
                 }
-                if (value.contains("..") && !value.endsWith("*")) {
-                    String[] bounds = value.split("\\.\\.");
-                    try {
-                        if (Long.parseLong(bounds[0]) > Long.parseLong(bounds[1])) throw new NumberFormatException();
-                    } catch (NumberFormatException invalid) { conflicts.add("Intervalo invalido: " + label); return; }
-                }
-                data.put(end + "Multiplicity", value);
+                multiplicities.forEach((end, value) -> data.put(end + "Multiplicity", value));
             }
             String sc = cardinality((String) data.get("sourceMultiplicity"));
             String tc = cardinality((String) data.get("targetMultiplicity"));

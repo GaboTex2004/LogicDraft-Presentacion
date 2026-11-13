@@ -246,6 +246,14 @@ def test_vision_prompt_defines_uml_symbols_direction_and_uncertainty_rules():
     assert "No inventes informacion" in VISION_PROMPT
 
 
+def test_vision_prompt_keeps_absent_and_invalid_multiplicities_distinct():
+    assert "aunque no haya multiplicidades visibles" in VISION_PROMPT
+    assert "omite por completo" in VISION_PROMPT
+    assert 'no intercambies limites ni corrijas valores invalidos como\n"1..0" a "0..1"' in VISION_PROMPT
+    assert "conserva relationKind y" in VISION_PROMPT
+    assert "aggregationEnd" in VISION_PROMPT
+
+
 @pytest.mark.parametrize("kind,aggregation_end", [
     ("ASSOCIATION", None),
     ("AGGREGATION", "SOURCE"),

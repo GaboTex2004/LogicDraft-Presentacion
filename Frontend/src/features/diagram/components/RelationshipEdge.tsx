@@ -17,6 +17,7 @@ import {
 import {
   cardinalities,
   CARDINALITY_LABELS,
+  hasSpecifiedRelationshipMultiplicity,
   visualAggregationEnd,
 } from "../services/relationshipCardinality";
 import {
@@ -422,6 +423,7 @@ export function RelationshipEdge(props: EdgeProps<DiagramEdge>) {
 
   const [path, labelX, labelY] = getBezierPath(props);
   const cards = cardinalities(props.data);
+  const multiplicitySpecified = hasSpecifiedRelationshipMultiplicity(props.data);
   const joinTable = deriveJoinTable(props, sourceNode?.data, targetNode?.data);
 
   const relationKind = props.data?.relationKind ?? "ASSOCIATION";
@@ -562,7 +564,7 @@ export function RelationshipEdge(props: EdgeProps<DiagramEdge>) {
             {remoteLock.label} editando
           </span>
         )}
-        {(["source", "target"] as const).map((end) => {
+        {multiplicitySpecified && (["source", "target"] as const).map((end) => {
           const x = end === "source" ? props.sourceX : props.targetX;
           const y = end === "source" ? props.sourceY : props.targetY;
           const position =

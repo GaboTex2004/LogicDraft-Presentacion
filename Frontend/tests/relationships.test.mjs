@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { cardinalities, CARDINALITY_LABELS, normalizeRelationshipEdge, equivalentRelationship, commitRelationshipEdge, removeRelationshipEdges, manualRelationshipData, mergeRelationshipDataChanges, visualAggregationEnd } from '../src/features/diagram/services/relationshipCardinality.ts'
+import { cardinalities, CARDINALITY_LABELS, normalizeRelationshipEdge, equivalentRelationship, commitRelationshipEdge, removeRelationshipEdges, hasSpecifiedRelationshipMultiplicity, manualRelationshipData, mergeRelationshipDataChanges, visualAggregationEnd } from '../src/features/diagram/services/relationshipCardinality.ts'
 import { applyDiagramOperations } from '../src/features/diagram/services/applyDiagramOperations.ts'
 import { deriveJoinTable } from '../src/features/diagram/services/derivedJoinTable.ts'
 
@@ -35,6 +35,23 @@ test('manual aggregation and composition persist the diamond at the target', () 
   assert.deepEqual(manualRelationshipData('ASSOCIATION'), {
     sourceCardinality: 'ONE_ONE', targetCardinality: 'ONE_ONE', relationKind: 'ASSOCIATION',
   })
+})
+test('imported UML relationships preserve unspecified multiplicity through normalization and reload', () => {
+  for (const relationKind of ['AGGREGATION', 'COMPOSITION', 'GENERALIZATION']) {
+    const imported = edge({ relationKind, ...(['AGGREGATION', 'COMPOSITION'].includes(relationKind) ? { aggregationEnd: 'TARGET' } : {}) })
+    const before = structuredClone(imported)
+    const normalized = normalizeRelationshipEdge(imported)
+    const reloaded = normalizeRelationshipEdge(JSON.parse(JSON.stringify(normalized)))
+    assert.equal(hasSpecifiedRelationshipMultiplicity(normalized.data), false)
+    assert.equal(normalized.data.sourceCardinality, undefined)
+    assert.equal(normalized.data.targetCardinality, undefined)
+    assert.deepEqual(reloaded, normalized)
+    assert.deepEqual(imported, before)
+  }
+  assert.equal(equivalentRelationship(
+    edge({ relationKind: 'AGGREGATION', aggregationEnd: 'TARGET' }),
+    edge({ relationKind: 'AGGREGATION', aggregationEnd: 'TARGET', sourceCardinality: 'ONE_ONE', targetCardinality: 'ONE_ONE' }),
+  ), false)
 })
 test('visual diamond defaults to target and respects both explicit ends without mutating data', () => {
   const missing = { relationKind: 'AGGREGATION' }
@@ -70,6 +87,7 @@ test('relationship renderer keeps diamonds aligned to endpoints and other UML ma
   assert.match(source, /id="uml-hollow-diamond"[\s\S]*?refX="1"[\s\S]*?refY="6"/)
   assert.match(source, /id="uml-hollow-diamond-end"[\s\S]*?refX="15"[\s\S]*?refY="6"/)
   assert.match(source, /relationKind === "GENERALIZATION" \|\| relationKind === "REALIZATION"/)
+  assert.match(source, /multiplicitySpecified && \(\["source", "target"\]/)
 })
 test('manual edit marks dirty once, emits EDGE_UPDATED, preserves metadata', () => {
   let state = [normalizeRelationshipEdge(edge({ custom: 42 }))], dirty = 0, events = []

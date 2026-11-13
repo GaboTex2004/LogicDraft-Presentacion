@@ -2,6 +2,7 @@ import { cloneAssociationMetadata } from "./associationMetadata.ts";
 import { validateDiagramDocument } from "./diagramDocumentValidation.ts";
 import {
   cardinalities,
+  hasSpecifiedRelationshipMultiplicity,
   normalizeRelationshipEdge,
   visualAggregationEnd,
 } from "./relationshipCardinality.ts";
@@ -283,6 +284,9 @@ function sameRelationData(
   imported: DiagramEdge,
   reversed: boolean,
 ): boolean {
+  const currentMultiplicitySpecified = hasSpecifiedRelationshipMultiplicity(current.data);
+  const importedMultiplicitySpecified = hasSpecifiedRelationshipMultiplicity(imported.data);
+  if (currentMultiplicitySpecified !== importedMultiplicitySpecified) return false;
   const currentCards = cardinalities(current.data);
   const importedCards = cardinalities(imported.data);
 
@@ -312,8 +316,8 @@ function sameRelationData(
     : incomingEnd;
 
   return (
-    currentCards.sourceCardinality === source &&
-    currentCards.targetCardinality === target &&
+    (!currentMultiplicitySpecified || currentCards.sourceCardinality === source &&
+      currentCards.targetCardinality === target) &&
     (!aggregate || currentEnd === remappedEnd) &&
     key(current.data?.name ?? "") === key(imported.data?.name ?? "") &&
     key(current.data?.joinTableName ?? "") ===

@@ -603,6 +603,66 @@ class ImageDiagramReconcilerTest {
         }
     }
 
+    @Test void createsAggregationAndCompositionWithoutInventingMultiplicities() {
+        for (String kind : List.of("AGGREGATION", "COMPOSITION")) {
+            for (String aggregationEnd : List.of("SOURCE", "TARGET")) {
+                String sourceName = "SOURCE".equals(aggregationEnd) ? "Persona" : "Docente";
+                String targetName = "TARGET".equals(aggregationEnd) ? "Persona" : "Docente";
+                var empty = m("version", 1, "nodes", List.of(), "edges", List.of());
+                var seen = recognition(
+                        classifier("Persona", "CLASS", List.of()),
+                        classifier("Docente", "CLASS", List.of()),
+                        m("type", "ADD_RELATIONSHIP", "source", sourceName, "target", targetName,
+                                "relationKind", kind, "aggregationEnd", aggregationEnd));
+
+                var first = ImageDiagramReconciler.reconcile(empty, seen);
+
+                assertTrue(first.canApply(), () -> first.conflicts().toString());
+                var edge = objectList(first.document().get("edges")).getFirst();
+                var edgeData = map(edge.get("data"));
+                assertEquals(kind, edgeData.get("relationKind"));
+                assertEquals(aggregationEnd, edgeData.get("aggregationEnd"));
+                Object diamondNodeId = "SOURCE".equals(aggregationEnd) ? edge.get("source") : edge.get("target");
+                assertEquals("Persona", map(nodeById(first.document(), diamondNodeId).get("data")).get("name"));
+                assertFalse(edgeData.containsKey("sourceMultiplicity"));
+                assertFalse(edgeData.containsKey("targetMultiplicity"));
+                assertFalse(edgeData.containsKey("sourceCardinality"));
+                assertFalse(edgeData.containsKey("targetCardinality"));
+                DiagramDocumentValidator.validate(first.document());
+
+                var repeated = ImageDiagramReconciler.reconcile(first.document(), seen);
+                assertFalse(repeated.canApply());
+                assertTrue(repeated.additions().isEmpty());
+                assertTrue(repeated.conflicts().isEmpty());
+                assertEquals(first.document(), repeated.document());
+            }
+        }
+    }
+
+    @Test void preservesValidAggregateMultiplicitiesAndRejectsDescendingInterval() {
+        var valid = ImageDiagramReconciler.reconcile(base(), recognition(
+                classifier("Pedido", "CLASS", List.of()),
+                m("type", "ADD_RELATIONSHIP", "source", "Cliente", "target", "Pedido",
+                        "relationKind", "AGGREGATION", "sourceMultiplicity", "1..1",
+                        "targetMultiplicity", "0..1", "aggregationEnd", "SOURCE")));
+        var validData = map(objectList(valid.document().get("edges")).getFirst().get("data"));
+        assertTrue(valid.canApply(), () -> valid.conflicts().toString());
+        assertEquals("1", validData.get("sourceMultiplicity"));
+        assertEquals("0..1", validData.get("targetMultiplicity"));
+        assertEquals("ONE_ONE", validData.get("sourceCardinality"));
+        assertEquals("ZERO_ONE", validData.get("targetCardinality"));
+
+        var original = base();
+        var invalid = ImageDiagramReconciler.reconcile(original, recognition(
+                classifier("Pedido", "CLASS", List.of()),
+                m("type", "ADD_RELATIONSHIP", "source", "Cliente", "target", "Pedido",
+                        "relationKind", "COMPOSITION", "sourceMultiplicity", "1..0",
+                        "aggregationEnd", "SOURCE")));
+        assertFalse(invalid.canApply());
+        assertTrue(invalid.conflicts().stream().anyMatch(conflict -> conflict.contains("Intervalo invalido")));
+        assertEquals(original, invalid.document());
+    }
+
     @Test void recognizesReadOnlyDerivedJoinTableOnExistingManyToManyEdgeWithoutFalseConflict() {
         var original = m("version", 2, "nodes", List.of(
                 node("v", "Venta", "CLASS"),

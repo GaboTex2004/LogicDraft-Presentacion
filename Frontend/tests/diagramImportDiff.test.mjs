@@ -146,6 +146,16 @@ test('aggregate import diff uses target fallback while preserving explicit sourc
   )
   assert.equal(missingMatchesTarget.relations[0].status, 'unchanged')
 
+  const unspecified = { ...aggregate(), data: { relationKind: 'AGGREGATION', aggregationEnd: 'TARGET' } }
+  const unspecifiedIsNotOneToOne = computeDiagramImportDiff(
+    { version: 2, nodes, edges: [unspecified] },
+    { version: 2, nodes: structuredClone(nodes), edges: [{
+      ...aggregate('TARGET'),
+      data: { ...aggregate('TARGET').data, sourceCardinality: 'ONE_ONE', targetCardinality: 'ONE_ONE' },
+    }] },
+  )
+  assert.equal(unspecifiedIsNotOneToOne.relations[0].status, 'modified')
+
   const explicitSourceIsNotReinterpreted = computeDiagramImportDiff(
     { version: 2, nodes, edges: [aggregate('SOURCE')] },
     { version: 2, nodes: structuredClone(nodes), edges: [aggregate('TARGET')] },

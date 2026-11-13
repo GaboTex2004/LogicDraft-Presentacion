@@ -123,6 +123,24 @@ class ImageProposalServiceTest {
         assertEquals("Pedido", map(objectList(committed.get("nodes")).get(1).get("data")).get("name"));
         assertEquals(5, revision);
     }
+    @Test void savesAndReloadsAggregateWithoutInventedMultiplicities() {
+        var proposal = service.prepare(service.load(10L), recognition(
+                classifier("Persona", "CLASS", List.of()),
+                m("type", "ADD_RELATIONSHIP", "source", "Cliente", "target", "Persona",
+                        "relationKind", "COMPOSITION", "aggregationEnd", "TARGET")));
+
+        assertTrue(proposal.canApply(), () -> proposal.conflicts().toString());
+        service.accept(10L, proposal.proposalId(), "browser");
+
+        var reloaded = service.load(10L).document();
+        var edgeData = map(objectList(reloaded.get("edges")).getFirst().get("data"));
+        assertEquals("COMPOSITION", edgeData.get("relationKind"));
+        assertEquals("TARGET", edgeData.get("aggregationEnd"));
+        assertFalse(edgeData.containsKey("sourceMultiplicity"));
+        assertFalse(edgeData.containsKey("targetMultiplicity"));
+        assertFalse(edgeData.containsKey("sourceCardinality"));
+        assertFalse(edgeData.containsKey("targetCardinality"));
+    }
     @Test void staleRevisionCannotBeMergedOrSaved() {
         var proposal = proposal(); revision++;
         assertThrows(DiagramConflictException.class, () -> service.accept(10L, proposal.proposalId(), "browser"));

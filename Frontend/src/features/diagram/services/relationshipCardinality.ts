@@ -20,8 +20,17 @@ export function cardinalities(data: Record<string, unknown> = {}) {
   const [sourceCardinality, targetCardinality] = typeof legacy === 'string' ? LEGACY_CARDINALITIES[legacy] : ['ONE_ONE', 'ONE_ONE'] as const
   return { sourceCardinality, targetCardinality }
 }
+export function hasSpecifiedRelationshipMultiplicity(data: Record<string, unknown> = {}): boolean {
+  return ['sourceCardinality', 'targetCardinality', 'relationshipType', 'sourceMultiplicity', 'targetMultiplicity']
+    .some(field => data[field] != null)
+}
 export function normalizeRelationshipEdge(edge: DiagramEdge): DiagramEdge {
-  const data: NonNullable<DiagramEdge['data']> = { ...edge.data, ...cardinalities(edge.data) }
+  const preserveUnspecifiedUmlMultiplicity = typeof edge.data?.relationKind === 'string'
+    && !hasSpecifiedRelationshipMultiplicity(edge.data)
+  const data: NonNullable<DiagramEdge['data']> = {
+    ...edge.data,
+    ...(preserveUnspecifiedUmlMultiplicity ? {} : cardinalities(edge.data)),
+  }
   delete data.relationshipType
   const normalized = { ...edge, type: 'relationship', data }
   delete normalized.markerEnd
@@ -60,11 +69,16 @@ export function mergeRelationshipDataChanges(
   return next
 }
 export function equivalentRelationship(a: DiagramEdge, b: DiagramEdge): boolean {
+  const aSpecified = hasSpecifiedRelationshipMultiplicity(a.data)
+  const bSpecified = hasSpecifiedRelationshipMultiplicity(b.data)
+  if (aSpecified !== bSpecified) return false
   const ac = cardinalities(a.data), bc = cardinalities(b.data)
   const an = typeof a.data?.name === 'string' ? a.data.name.trim().toLocaleLowerCase() : ''
   const bn = typeof b.data?.name === 'string' ? b.data.name.trim().toLocaleLowerCase() : ''
-  return an === bn && ((a.source === b.source && a.target === b.target && ac.sourceCardinality === bc.sourceCardinality && ac.targetCardinality === bc.targetCardinality)
-    || (a.source === b.target && a.target === b.source && ac.sourceCardinality === bc.targetCardinality && ac.targetCardinality === bc.sourceCardinality))
+  return an === bn && ((a.source === b.source && a.target === b.target && (!aSpecified
+    || ac.sourceCardinality === bc.sourceCardinality && ac.targetCardinality === bc.targetCardinality))
+    || (a.source === b.target && a.target === b.source && (!aSpecified
+      || ac.sourceCardinality === bc.targetCardinality && ac.targetCardinality === bc.sourceCardinality)))
 }
 
 export function removeRelationshipEdges(current: DiagramEdge[], edgeIds: ReadonlySet<string>): DiagramEdge[] {
