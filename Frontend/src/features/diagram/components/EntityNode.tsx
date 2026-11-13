@@ -95,7 +95,7 @@ export function EntityNode({ id, data, selected }: NodeProps<EntityFlowNode>) {
         position={Position.Right}
       />
 
-      {/* Nuevos puntos de conexión */}
+      {/* Loose admite estos conectores en ambos extremos; un origen requiere type="source". */}
       <Handle
         id="uml-top"
         className="entity-handle"
@@ -106,7 +106,7 @@ export function EntityNode({ id, data, selected }: NodeProps<EntityFlowNode>) {
       <Handle
         id="uml-bottom"
         className="entity-handle"
-        type="target"
+        type="source"
         position={Position.Bottom}
       />
 

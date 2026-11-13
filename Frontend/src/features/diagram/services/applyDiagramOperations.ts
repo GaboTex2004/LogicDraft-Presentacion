@@ -26,6 +26,7 @@ import type {
 import { equivalentRelationship, isCardinality, normalizeRelationshipEdge } from './relationshipCardinality.ts'
 import { convertManyToManyAssociation, structuralRelationshipIds } from './associationConversion.ts'
 import { validateDiagramDocument } from './diagramDocumentValidation.ts'
+import { updateEntityAttribute } from './attributeEditing.ts'
 
 export const AI_TYPE_MAP: Record<AiDataType, AttributeType> = {
   String: 'VARCHAR', Long: 'BIGINT', Integer: 'INTEGER', Double: 'DECIMAL',
@@ -794,7 +795,7 @@ export function applyDiagramOperations(
       }
       nodes = nodes.map(candidate => candidate.id === node.id ? { ...candidate, data: { ...candidate.data,
         attributes: candidate.data.attributes.map(item => item.id === attr.id
-          ? { ...item, primaryKey: op.value, ...(op.value ? { nullable: false } : {}) } : item) } } : candidate)
+          ? updateEntityAttribute(item, { primaryKey: op.value }) : item) } } : candidate)
     } else if (op.type === 'SET_ATTRIBUTE_NULLABLE') {
       const { node, attribute: attr } = findAttribute(op.entityName, op.attributeName)
       verifyNotStructuralFk(node, op.attributeName, false)

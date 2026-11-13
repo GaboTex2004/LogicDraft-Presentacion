@@ -133,6 +133,7 @@ import {
   validateAssociationDocument,
 } from "../services/associationConversion";
 import { deriveJoinTable, postgresType } from "../services/derivedJoinTable";
+import { updateEntityAttribute } from "../services/attributeEditing";
 import {
   commitRelationshipEdge,
   normalizeRelationshipEdge,
@@ -1748,7 +1749,7 @@ function DiagramEditorCanvas({
         ...node.data,
         attributes: node.data.attributes.map((attribute) =>
           attribute.id === attributeId
-            ? { ...attribute, ...changes }
+            ? updateEntityAttribute(attribute, changes)
             : attribute,
         ),
       },
@@ -2380,7 +2381,12 @@ function DiagramEditorCanvas({
     try {
       await descargarProyectoGenerado(project.id, kind, project.nombre);
       const structuralNames = nodesRef.current
-        .filter((node) => (node.data.kind ?? "ENTITY") !== "ENTITY")
+        .filter((node) => {
+          const kind = node.data.kind ?? "ENTITY";
+          return kind !== "ENTITY"
+            && !(kind === "CLASS" && node.data.generateCrud)
+            && !(kind === "ASSOCIATION_CLASS" && node.data.association);
+        })
         .map((node) => node.data.name);
       const warning =
         structuralNames.length > 0

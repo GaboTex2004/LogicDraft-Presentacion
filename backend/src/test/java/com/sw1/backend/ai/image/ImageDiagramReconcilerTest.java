@@ -2,6 +2,19 @@ package com.sw1.backend.ai.image;
 
 import com.sw1.backend.diagrama.validation.DiagramDocumentValidator;
 import com.sw1.backend.diagrama.validation.DiagramValidationException;
+import com.sw1.backend.diagrama.dto.response.DiagramaResponse;
+import com.sw1.backend.generator.ea.EnterpriseArchitectExportSourceService.ExportSnapshot;
+import com.sw1.backend.generator.ea.EnterpriseArchitectXmiGenerator;
+import com.sw1.backend.generator.ea.EnterpriseArchitectXmiParser;
+import com.sw1.backend.generator.ea.EnterpriseArchitectXmiReader;
+import com.sw1.backend.generator.export.FullStackGenerator;
+import com.sw1.backend.generator.flutter.FlutterGenerator;
+import com.sw1.backend.generator.mapper.ApplicationSchemaMapper;
+import com.sw1.backend.generator.spring.SpringBootGenerator;
+import com.sw1.backend.generator.validation.ApplicationSchemaException;
+import com.sw1.backend.generator.zip.SafeZipWriter;
+import com.sw1.backend.proyecto.dto.response.ProyectoResponse;
+import java.time.LocalDateTime;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -39,6 +52,23 @@ class ImageDiagramReconcilerTest {
         assertEquals(firstData(before), firstData(result.document())); assertEquals(before, original);
         DiagramDocumentValidator.validate(result.document());
     }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void imagePrimaryKeyAlwaysBecomesNonNullableWithoutChangingRecognition(boolean nullable) {
+        var observed = recognition(classifier("Persona", "CLASS", List.of(
+                m("name", "CI", "type", "INTEGER", "primaryKey", true, "nullable", nullable))));
+        var before = ImageDiagramReconciler.copy(observed);
+        var result = ImageDiagramReconciler.reconcile(
+                m("version", 2, "nodes", List.of(), "edges", List.of()), observed);
+
+        assertTrue(result.canApply(), () -> result.conflicts().toString());
+        var attribute = (Map<?, ?>) ((List<?>) firstData(result.document()).get("attributes")).getFirst();
+        assertEquals(Boolean.TRUE, attribute.get("primaryKey"));
+        assertEquals(Boolean.FALSE, attribute.get("nullable"));
+        assertEquals(before, observed);
+        DiagramDocumentValidator.validate(result.document());
+    }
     @Test void addsOnlyMissingAttributeAndKeepsIdsAndMetadata() {
         var original = base();
         firstData(original).put("attributes", List.of(m("id", "a", "name", "id", "type", "BIGINT", "primaryKey", true,
@@ -49,6 +79,68 @@ class ImageDiagramReconcilerTest {
         var attrs = (List<?>) firstData(result.document()).get("attributes");
         assertEquals(((List<?>) firstData(original).get("attributes")).getFirst(), attrs.getFirst());
         assertNotEquals("a", ((Map<?, ?>) attrs.get(1)).get("id"));
+    }
+
+    @Test void newUntypedImageBoxRemainsClassThroughExplicitCrudAndXmiRoundTrip() {
+        var observed = recognition(classifier("Persona", null, List.of(
+                m("name", "CI", "type", "INTEGER", "primaryKey", true, "nullable", true))));
+        var before = ImageDiagramReconciler.copy(observed);
+        var result = ImageDiagramReconciler.reconcile(
+                m("version", 1, "nodes", List.of(), "edges", List.of()), observed);
+
+        assertTrue(result.canApply(), () -> result.conflicts().toString());
+        assertEquals(2, result.document().get("version"));
+        assertEquals("CLASS", firstData(result.document()).get("kind"));
+        assertFalse(firstData(result.document()).containsKey("generateCrud"));
+        assertEquals(before, observed);
+        assertThrows(ApplicationSchemaException.class,
+                () -> ApplicationSchemaMapper.fromDocument("Personas", result.document()));
+
+        var crudDocument = ImageDiagramReconciler.copy(result.document());
+        firstData(crudDocument).put("generateCrud", true);
+        var schema = ApplicationSchemaMapper.fromDocument("Personas", crudDocument);
+        var generated = new FullStackGenerator(new SpringBootGenerator(), new FlutterGenerator()).generate(schema);
+        assertTrue(generated.files().keySet().stream().anyMatch(path -> path.endsWith("/PersonaController.java")));
+        assertTrue(generated.files().containsKey("frontend/lib/models/persona.dart"));
+        assertTrue(SafeZipWriter.write(generated).length > 0);
+        assertEquals("CLASS", firstData(crudDocument).get("kind"));
+
+        var project = new ProyectoResponse();
+        project.setId(10L);
+        project.setNombre("Personas");
+        var diagram = new DiagramaResponse(20L, 10L, 2, 1L, crudDocument, LocalDateTime.now());
+        byte[] xmi = new EnterpriseArchitectXmiGenerator().generate(new ExportSnapshot(project, diagram));
+        var imported = new EnterpriseArchitectXmiReader(new EnterpriseArchitectXmiParser()).read(xmi);
+        assertEquals("CLASS", ((Map<?, ?>) imported.nodes().getFirst().get("data")).get("kind"));
+        DiagramDocumentValidator.validate(crudDocument);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ENTITY", "CLASS"})
+    void omittedImageKindPreservesExistingClassifierType(String kind) {
+        var original = base();
+        firstData(original).put("kind", kind);
+        var result = ImageDiagramReconciler.reconcile(original, recognition(classifier("Cliente", null,
+                List.of(m("name", "correo", "type", "VARCHAR")))));
+
+        assertTrue(result.canApply(), () -> result.conflicts().toString());
+        assertEquals(kind, firstData(result.document()).get("kind"));
+        assertEquals(List.of(), firstData(original).get("attributes"));
+    }
+
+    @Test void explicitImageEntityIsPreservedAndCannotBeRetypedByAnotherImage() {
+        var original = m("version", 1, "nodes", List.of(), "edges", List.of());
+        var first = ImageDiagramReconciler.reconcile(original,
+                recognition(classifier("Auditoria", "ENTITY", List.of())));
+        assertTrue(first.canApply());
+        assertEquals("ENTITY", firstData(first.document()).get("kind"));
+        assertEquals(1, first.document().get("version"));
+
+        var second = ImageDiagramReconciler.reconcile(first.document(),
+                recognition(classifier("Auditoria", "CLASS", List.of())));
+        assertFalse(second.canApply());
+        assertFalse(second.conflicts().isEmpty());
+        assertEquals(first.document(), second.document());
     }
     @Test void addsRelationshipAndRepeatedImageIsIdempotent() {
         var original = base();

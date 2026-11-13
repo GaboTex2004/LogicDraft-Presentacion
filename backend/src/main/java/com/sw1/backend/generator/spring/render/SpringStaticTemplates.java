@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 public final class SpringStaticTemplates {
     public static final String SPRING_BOOT_VERSION = "4.1.1";
+    public static final String SPRINGDOC_VERSION = "3.2.0";
 
     private SpringStaticTemplates() {
     }
@@ -31,12 +32,13 @@ public final class SpringStaticTemplates {
                     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
                     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-jpa</artifactId></dependency>
                     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId></dependency>
+                    <dependency><groupId>org.springdoc</groupId><artifactId>springdoc-openapi-starter-webmvc-ui</artifactId><version>%s</version></dependency>
                     <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>
                     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
                   </dependencies>
                   <build><plugins><plugin><groupId>org.springframework.boot</groupId><artifactId>spring-boot-maven-plugin</artifactId></plugin></plugins></build>
                 </project>
-                """.formatted(SPRING_BOOT_VERSION, artifact);
+                """.formatted(SPRING_BOOT_VERSION, artifact, SPRINGDOC_VERSION);
     }
 
     public static String properties(String database) {
@@ -176,6 +178,13 @@ public final class SpringStaticTemplates {
                 Ejecuta `mvn spring-boot:run`. La URL base predeterminada es `http://localhost:8080`; puedes cambiar
                 el puerto con `SERVER_PORT`. Abrir `/` puede devolver 404 porque este proyecto es una API: utiliza
                 las rutas `/api/...` listadas a continuacion y detalladas en `API.md`.
+
+                Swagger UI esta disponible en `http://localhost:8080/swagger-ui/index.html` y el contrato OpenAPI
+                en `http://localhost:8080/v3/api-docs`. Ajusta el puerto si cambias `SERVER_PORT`.
+
+                Las agregaciones y composiciones se generan como asociaciones con las cardinalidades del diagrama.
+                Las generalizaciones entre clases CRUD se generan como asociaciones 1:1 con la FK en la clase hija.
+                Crea primero el registro padre y envia su ID al crear el hijo. El diagrama UML conserva sus tipos.
 
                 ## Resumen de endpoints CRUD
 

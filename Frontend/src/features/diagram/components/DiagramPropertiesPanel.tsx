@@ -264,7 +264,8 @@ export function DiagramPropertiesPanel({
                 }}
               />
               Generar CRUD (Spring Boot + Flutter)
-              <small>Requiere exactamente una Primary Key, sin métodos ni herencia.
+              <small>Requiere exactamente una Primary Key y sin métodos.
+                La generalización se genera como una asociación con clave foránea.
                 No modifica el tipo UML ni el XMI.</small>
             </label>
           )}

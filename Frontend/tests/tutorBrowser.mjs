@@ -43,6 +43,7 @@ try {
   })
   let role = 'OWNER'
   let exercise = false
+  let imageDiagram = null
   const errors = [], mutations = []
   const project = { id: 10, workspaceId: 1, workspaceNombre: 'Prueba', nombre: 'Proyecto de prueba', descripcion: '', fechaCreacion: '2026-11-07' }
   socket.onmessage = event => {
@@ -65,6 +66,8 @@ try {
       else if (exercise && request.method === 'PUT' && path.endsWith('/diagrama')) {
         const document = JSON.parse(request.postData)
         body = { id: 20, proyectoId: 10, revision: 2, version: document.version, contenido: { version: document.version, nodes: document.nodes, edges: document.edges }, fechaActualizacion: '2026-11-07' }
+        if (imageDiagram) imageDiagram = { ...body, revision: imageDiagram.revision + 1 }
+        if (imageDiagram) body = imageDiagram
       }
       else if (request.method === 'POST' && path.endsWith('/proyectos/10/locks/release')) body = {}
       else if (request.method !== 'GET' && request.method !== 'OPTIONS') { mutations.push(path); status = 403 }
@@ -73,7 +76,7 @@ try {
       else if (path.endsWith('/proyectos')) body = [project, { ...project, id: 11, nombre: 'Otro proyecto' }]
       else if (path.endsWith('/proyectos/10')) body = project
       else if (path.endsWith('/proyectos/12')) body = { ...project, id: 12, nombre: 'xcdf' }
-      else if (path.endsWith('/diagrama')) body = { id: 20, proyectoId: path.includes('/12/') ? 12 : 10, revision: 1, version: 1, contenido: { version: 1, nodes: [], edges: [] }, fechaActualizacion: '2026-11-07' }
+      else if (path.endsWith('/diagrama')) body = imageDiagram ?? { id: 20, proyectoId: path.includes('/12/') ? 12 : 10, revision: 1, version: 1, contenido: { version: 1, nodes: [], edges: [] }, fechaActualizacion: '2026-11-07' }
       else if (path.includes('/ws')) { status = 503; body = {} }
       void commands('Fetch.fulfillRequest', { requestId, responseCode: status, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }, { name: 'Access-Control-Allow-Origin', value: '*' }, { name: 'Access-Control-Allow-Headers', value: '*' }, { name: 'Access-Control-Allow-Methods', value: '*' }], body: Buffer.from(JSON.stringify(body)).toString('base64') }).catch(error => errors.push(String(error)))
     }
@@ -102,6 +105,36 @@ try {
     await until('!!document.querySelector(".tutor-guide-list")')
     await click(`.tutor-guide-list button:nth-child(${index})`)
   }
+  exercise = true
+  // Reload a server-accepted image-style document with a bottom source handle.
+  imageDiagram = {
+    id: 20, proyectoId: 10, revision: 10, version: 2,
+    contenido: {
+      version: 2,
+      nodes: [
+        { id: 'image-person', type: 'entity', position: { x: 50, y: 50 }, data: {
+          id: 'image-person', name: 'Persona', kind: 'CLASS', methods: [],
+          attributes: [{ id: 'image-ci', name: 'CI', type: 'INTEGER', primaryKey: true, nullable: false }],
+        } },
+        { id: 'image-client', type: 'entity', position: { x: 500, y: 350 }, data: {
+          id: 'image-client', name: 'Cliente', kind: 'CLASS', methods: [], attributes: [],
+        } },
+      ],
+      edges: [{ id: 'image-edge', source: 'image-person', target: 'image-client',
+        sourceHandle: 'uml-bottom', targetHandle: 'uml-top', type: 'relationship',
+        data: { sourceCardinality: 'ONE_ONE', targetCardinality: 'ONE_ONE', relationKind: 'ASSOCIATION' } }],
+    },
+  }
+  await commands('Emulation.setDeviceMetricsOverride', { width: 1400, height: 1000, deviceScaleFactor: 1, mobile: false })
+  await commands('Page.navigate', { url: `${base}/proyectos/10/editor` })
+  await until('!!document.querySelector(".react-flow__edge[data-id=image-edge] .react-flow__edge-path")')
+  await commands('Page.navigate', { url: `${base}/proyectos/10/editor` })
+  await until('!!document.querySelector(".react-flow__edge[data-id=image-edge] .react-flow__edge-path")')
+  assert.equal(await evaluate('document.querySelector(".entity-node .primary-key")?.textContent.trim().startsWith("PK")'), true)
+  console.log('PASS image-style document: bottom source edge and primary key render after loading and reloading')
+  imageDiagram = null
+
+  exercise = false
   await commands('Page.navigate', { url: `${base}/dashboard` })
   await until('document.querySelectorAll(".workspace-card").length === 1')
   await click('.tutor-bubble')

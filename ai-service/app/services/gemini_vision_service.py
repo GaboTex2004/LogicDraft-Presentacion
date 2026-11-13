@@ -24,7 +24,10 @@ clases en ENTITY ni viceversa. Para coincidencias existentes respeta el kind del
 documento (si falta, el contrato v1 lo interpreta como ENTITY). Si un cuadro muestra
 "entity" usa kind "ENTITY"; si muestra "class" usa "CLASS"; si muestra "interface"
 usa "INTERFACE"; si muestra "enumeration" usa "ENUMERATION"; si muestra
-"association_class" usa "ASSOCIATION_CLASS". Si kind es incierto omite kind.
+"association_class" usa "ASSOCIATION_CLASS".
+Para clasificadores nuevos sin un tipo explicito usa CLASS: una caja UML ordinaria
+con nombre y atributos es una clase UML. No infieras ENTITY por tener atributos o PK.
+Esta regla se aplica a cajas nuevas; para coincidencias existentes conserva su kind.
 REGLAS CRITICAS PARA ATRIBUTOS, METODOS Y LITERALES:
 - Inspecciona cada compartimento de cada caja UML (ENTITY, CLASS, INTERFACE,
   ENUMERATION y ASSOCIATION_CLASS, como Venta, Producto, compra, Devolucion o

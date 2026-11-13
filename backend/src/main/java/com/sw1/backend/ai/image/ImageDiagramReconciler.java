@@ -486,7 +486,8 @@ public final class ImageDiagramReconciler {
         Map<String, Object> data;
         String kind = (String) observed.get("kind");
         if (candidates.isEmpty()) {
-            if (kind == null) { conflicts.add("Tipo UML incierto: " + name); return; }
+            // New untyped boxes default to UML classes; existing nodes retain their kind.
+            if (kind == null) kind = "CLASS";
             if ("ASSOCIATION_CLASS".equals(kind)) {
                 String message = "Nueva clase asociativa " + name + ": requiere vincular su asociacion explicitamente; no se infiere por imagen.";
                 warnings.add(message); conflicts.add(message); return;

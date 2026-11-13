@@ -46,6 +46,13 @@ class GeneratedProjectCompilationTest {
                 "associative-entity", false);
     }
 
+    @Test
+    void simplifiedUmlForeignKeysCompileInGeneratedBackend() throws Exception {
+        var schema = com.sw1.backend.generator.mapper.ApplicationSchemaMapper.fromDocument(
+                "Academia", SimplifiedUmlGenerationTest.document());
+        compile(new SpringBootGenerator().generate(schema), "simplified-uml", false);
+    }
+
     private void compile(GeneratedProject generated, String directory, boolean runtimeTests) throws Exception {
         Path root = temporaryDirectory.resolve(directory).resolve(generated.rootDirectoryName());
         for (var file : generated.files().entrySet()) {
@@ -60,6 +67,11 @@ class GeneratedProjectCompilationTest {
             try (var source = getClass().getResourceAsStream("/generator/RuntimeAiCommandControllerTest.java.txt")) {
                 assertNotNull(source);
                 Files.copy(source, target);
+            }
+            Path swaggerTest = root.resolve("src/test/java/com/logicdraft/generated/peluqueria/GeneratedSwaggerTest.java");
+            try (var source = getClass().getResourceAsStream("/generator/GeneratedSwaggerTest.java.txt")) {
+                assertNotNull(source);
+                Files.copy(source, swaggerTest);
             }
         }
         Path log = temporaryDirectory.resolve(directory + "-maven.log");

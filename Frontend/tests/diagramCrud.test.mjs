@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { applyDiagramOperations, parseDiagramAiResponse } from '../src/features/diagram/services/applyDiagramOperations.ts'
 import { validateAssociationDocument } from '../src/features/diagram/services/associationConversion.ts'
+import { validateDiagramDocument } from '../src/features/diagram/services/diagramDocumentValidation.ts'
+import { updateEntityAttribute } from '../src/features/diagram/services/attributeEditing.ts'
 
 let id = 0
 const apply = (document, operations) => applyDiagramOperations(document.nodes, document.edges, operations, () => `crud-${++id}`)
@@ -47,6 +49,37 @@ test('attribute CRUD covers rename, type, PK, nullable and deletion', () => {
     { type: 'DELETE_ATTRIBUTE', entityName: 'Producto', attributeName: 'cantidad' },
   ])
   assert.equal(result.nodes[0].data.attributes.length, 0)
+})
+
+test('text AI can promote an image-style nullable attribute to PK without corrupting the original', () => {
+  const original = {
+    version: 2,
+    nodes: [{ id: 'person', type: 'entity', position: { x: 0, y: 0 }, data: {
+      id: 'person', name: 'Persona', kind: 'CLASS', methods: [],
+      attributes: [{ id: 'ci', name: 'CI', type: 'INTEGER', primaryKey: false, nullable: true }],
+    } }],
+    edges: [],
+  }
+  const result = apply(original, [
+    { type: 'SET_ATTRIBUTE_PRIMARY_KEY', entityName: 'Persona', attributeName: 'CI', value: true },
+  ])
+  assert.equal(result.nodes[0].data.attributes[0].nullable, false)
+  assert.equal(result.nodes[0].data.attributes[0].primaryKey, true)
+  assert.equal(original.nodes[0].data.attributes[0].nullable, true)
+  assert.equal(original.nodes[0].data.attributes[0].primaryKey, false)
+  assert.doesNotThrow(() => validateDiagramDocument({ version: 2, nodes: result.nodes, edges: result.edges }))
+})
+
+test('manual attribute edits preserve the PK invariant for image and text attributes', () => {
+  const original = { id: 'ci', name: 'CI', type: 'INTEGER', primaryKey: false, nullable: true }
+  const primaryKey = updateEntityAttribute(original, { primaryKey: true })
+  assert.equal(primaryKey.primaryKey, true)
+  assert.equal(primaryKey.nullable, false)
+  assert.deepEqual(original, { id: 'ci', name: 'CI', type: 'INTEGER', primaryKey: false, nullable: true })
+  assert.equal(updateEntityAttribute(primaryKey, { name: 'codigo' }).nullable, false)
+  assert.equal(updateEntityAttribute(original, { name: 'codigo' }).nullable, true)
+  assert.equal(updateEntityAttribute(primaryKey, { primaryKey: false, nullable: true }).nullable, true)
+  assert.equal(updateEntityAttribute({ ...primaryKey, nullable: true }, { name: 'codigo' }).nullable, false)
 })
 
 test('relationship CRUD updates orientation safely and rejects ambiguity', () => {

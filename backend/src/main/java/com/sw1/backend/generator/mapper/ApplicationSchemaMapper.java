@@ -60,10 +60,25 @@ public final class ApplicationSchemaMapper {
             String source = text(edge.get("source"), "source de " + id);
             String target = text(edge.get("target"), "target de " + id);
             Map<?, ?> data = edge.get("data") == null ? Map.of() : map(edge.get("data"), "data de " + id);
-            if (Integer.valueOf(2).equals(document.get("version")) && data.get("relationKind") != null
-                    && !"ASSOCIATION".equals(data.get("relationKind"))) continue;
+            String kind = data.get("relationKind") == null ? "ASSOCIATION"
+                    : text(data.get("relationKind"), "tipo de relacion " + id);
             if (Integer.valueOf(2).equals(document.get("version"))
-                    && (!generableEntityIds.contains(source) || !generableEntityIds.contains(target))) continue;
+                    && !Set.of("ASSOCIATION", "AGGREGATION", "COMPOSITION", "GENERALIZATION").contains(kind)) continue;
+            if (Integer.valueOf(2).equals(document.get("version"))
+                    && (!generableEntityIds.contains(source) || !generableEntityIds.contains(target))) {
+                if (!"ASSOCIATION".equals(kind)
+                        && (generableEntityIds.contains(source) || generableEntityIds.contains(target))) {
+                    throw new ApplicationSchemaException("La relacion '" + id
+                            + "' requiere que ambos extremos generen CRUD y tengan una primary key valida.");
+                }
+                continue;
+            }
+            if ("GENERALIZATION".equals(kind)) {
+                // UML points child -> parent. The existing 1:1 planner owns the FK at the target.
+                relationships.add(new ApplicationRelationship(id, target, source,
+                        ApplicationCardinality.ONE_ONE, ApplicationCardinality.ONE_ONE));
+                continue;
+            }
             ApplicationCardinality[] cards = cardinalities(data, id);
             String relationshipName = optionalText(data.get("name"), "nombre de relacion " + id);
             String joinTableName = optionalText(data.get("joinTableName"), "tabla intermedia de " + id);
@@ -219,7 +234,7 @@ public final class ApplicationSchemaMapper {
             persistentIds.add(entry.getKey());
         }
 
-        // No descartar silenciosamente herencia o realización UML.
+        // Realizations remain structural contracts; generalizations become simple FK associations.
         for (Object raw : list(document.get("edges"), "edges")) {
             Map<?, ?> edge = map(raw, "relacion");
 
@@ -232,14 +247,13 @@ public final class ApplicationSchemaMapper {
                     : text(edgeData.get("relationKind"),
                             "tipo de relacion");
 
-            if (("GENERALIZATION".equals(kind)
-                    || "REALIZATION".equals(kind))
+            if ("REALIZATION".equals(kind)
                     && (persistentIds.contains(edge.get("source"))
                     || persistentIds.contains(edge.get("target")))) {
 
                 throw new ApplicationSchemaException(
                         "Una clase UML utilizada como entidad persistente "
-                        + "tiene herencia o realizacion: define primero "
+                        + "tiene una realizacion: define primero "
                         + "una conversion explicita para evitar perder "
                         + "esas relaciones.");
             }

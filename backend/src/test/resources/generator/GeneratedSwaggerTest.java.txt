@@ -1,0 +1,47 @@
+package com.logicdraft.generated.peluqueria;
+
+import com.logicdraft.generated.peluqueria.controller.CategoriaController;
+import com.logicdraft.generated.peluqueria.error.GlobalExceptionHandler;
+import com.logicdraft.generated.peluqueria.service.CategoriaService;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+
+class GeneratedSwaggerTest {
+    @Configuration(proxyBeanMethods = false)
+    @EnableAutoConfiguration(excludeName = "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration")
+    @Import({CategoriaController.class, GlobalExceptionHandler.class})
+    static class SwaggerApplication {
+        @Bean CategoriaService categoriaService() { return mock(CategoriaService.class); }
+    }
+
+    @Test
+    void servesSwaggerUiAndDocumentsTheGeneratedCrudWithoutADatabase() throws Exception {
+        try (var context = new SpringApplicationBuilder(SwaggerApplication.class)
+                .run("--server.port=0", "--spring.main.banner-mode=off")) {
+            int port = ((ServletWebServerApplicationContext) context).getWebServer().getPort();
+            var client = HttpClient.newHttpClient();
+            var ui = client.send(HttpRequest.newBuilder(URI.create(
+                    "http://127.0.0.1:" + port + "/swagger-ui/index.html")).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, ui.statusCode());
+            assertTrue(ui.body().contains("Swagger UI"));
+            var specification = client.send(HttpRequest.newBuilder(URI.create(
+                    "http://127.0.0.1:" + port + "/v3/api-docs")).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, specification.statusCode());
+            assertTrue(specification.body().contains("/api/categoria"));
+            assertTrue(specification.body().contains("CategoriaCreateRequest"));
+        }
+    }
+}

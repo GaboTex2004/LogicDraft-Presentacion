@@ -94,6 +94,15 @@ def test_classifier_allows_omitted_optional_kind_and_lists():
     assert op.literals == []
 
 
+def test_vision_requests_class_for_new_untyped_boxes_without_forcing_existing_kinds():
+    result, client = interpret({"operations": [{"type": "ADD_CLASSIFIER", "name": "Persona"}], "warnings": []})
+    instruction = client.aio.models.generate_content.call_args.kwargs["contents"][1]
+    assert "Para clasificadores nuevos sin un tipo explicito usa CLASS" in instruction
+    assert "para coincidencias existentes conserva su kind" in instruction
+    # Java resolves an omitted kind against the current document before applying its default.
+    assert result.operations[0].kind is None
+
+
 @pytest.mark.parametrize("extra", [{"id": "existing-id"}, {"position": {"x": 0}}, {"replace": True}])
 def test_rejects_model_ids_and_replacement_fields(extra):
     with pytest.raises(ValidationError):
