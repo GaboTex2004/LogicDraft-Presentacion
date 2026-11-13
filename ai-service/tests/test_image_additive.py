@@ -227,3 +227,50 @@ def test_vision_prompt_distinguishes_association_class_dashed_connector_and_mult
     assert "PK" in VISION_PROMPT
 
 
+def test_vision_prompt_defines_uml_symbols_direction_and_uncertainty_rules():
+    expected_rules = [
+        'ASSOCIATION: linea continua sin rombo',
+        'AGGREGATION: linea continua con rombo vacio',
+        'COMPOSITION: linea continua con rombo relleno',
+        'GENERALIZATION: linea continua con triangulo hueco',
+        'REALIZATION: linea discontinua con triangulo hueco',
+        'DEPENDENCY: linea discontinua con flecha abierta',
+        'source=hija y target=padre',
+        'aggregationEnd="SOURCE"',
+        '"TARGET" si esta junto',
+    ]
+    for rule in expected_rules:
+        assert rule in VISION_PROMPT
+    assert "No confundas un triangulo hueco con un rombo vacio" in VISION_PROMPT
+    assert "omite el campo incierto" in VISION_PROMPT
+    assert "No inventes informacion" in VISION_PROMPT
+
+
+@pytest.mark.parametrize("kind,aggregation_end", [
+    ("ASSOCIATION", None),
+    ("AGGREGATION", "SOURCE"),
+    ("AGGREGATION", "TARGET"),
+    ("COMPOSITION", "SOURCE"),
+    ("COMPOSITION", "TARGET"),
+    ("GENERALIZATION", None),
+    ("REALIZATION", None),
+    ("DEPENDENCY", None),
+])
+def test_image_v1_preserves_supported_relationship_kind_and_diamond_end(kind, aggregation_end):
+    operation = {
+        "type": "ADD_RELATIONSHIP",
+        "source": "Hija",
+        "target": "Padre",
+        "relationKind": kind,
+    }
+    if aggregation_end is not None:
+        operation["sourceMultiplicity"] = "1"
+        operation["targetMultiplicity"] = "0..*"
+        operation["aggregationEnd"] = aggregation_end
+
+    parsed = ImageRecognition.model_validate({"operations": [operation], "warnings": []})
+
+    assert parsed.operations[0].relationKind == kind
+    assert parsed.operations[0].aggregationEnd == aggregation_end
+
+

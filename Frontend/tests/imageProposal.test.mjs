@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   parseImageProposal,
+  partitionImageWarnings,
   imageProposalAcceptanceError,
   resolveAiPromptErrorMessage,
 } from '../src/features/diagram/services/imageProposal.ts'
@@ -15,6 +16,21 @@ test('image proposal parser preserves base revision and never modifies a canvas'
   const before = structuredClone(raw)
   assert.deepEqual(parseImageProposal(raw), before)
   assert.deepEqual(raw, before)
+})
+test('incomplete relationships are displayed separately from informational warnings', () => {
+  const warnings = [
+    'Relación pendiente (no se añadirá): Persona → Docente (multiplicidad ausente o ilegible).',
+    'Una etiqueta es ilegible.',
+  ]
+  assert.deepEqual(partitionImageWarnings(warnings), {
+    pendingRelationships: [warnings[0]],
+    informationalWarnings: [warnings[1]],
+  })
+  const dialog = readFileSync(new URL('../src/features/diagram/components/DiagramImageProposalDialog.tsx', import.meta.url), 'utf8')
+  assert.match(dialog, /Elementos válidos que se añadirán/)
+  assert.match(dialog, /Relaciones incompletas que quedarán pendientes/)
+  assert.match(dialog, /Conflictos \(impiden confirmar\)/)
+  assert.match(dialog, /Advertencias informativas/)
 })
 test('general-agent operations cannot enter the image proposal contract', () => {
   for (const type of ['DELETE_ENTITY', 'UPDATE_ATTRIBUTE', 'ADD_ENTITY']) {

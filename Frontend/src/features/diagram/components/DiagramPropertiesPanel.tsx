@@ -142,6 +142,26 @@ export function DiagramPropertiesPanel({
             {UML_RELATION_KINDS.map(kind => <option key={kind} value={kind}>{kind}</option>)}
           </select>
         </label>
+        {(['AGGREGATION', 'COMPOSITION'] as const).includes(edge.data?.relationKind as 'AGGREGATION' | 'COMPOSITION') && <label>Extremo del rombo
+          <select value={edge.data?.aggregationEnd ?? 'TARGET'} disabled={structuralRelationship}
+            aria-disabled={isLockedByOther || structuralRelationship || undefined}
+            onMouseDown={event => {
+              if (isLockedByOther) {
+                event.preventDefault();
+                notifyLockedAttempt();
+              }
+            }}
+            onChange={event => {
+              if (isLockedByOther) {
+                notifyLockedAttempt();
+                return;
+              }
+              onChangeRelationshipData?.({ aggregationEnd: event.target.value as 'SOURCE' | 'TARGET' });
+            }}>
+            <option value="SOURCE">Origen</option>
+            <option value="TARGET">Destino</option>
+          </select>
+        </label>}
         <label>Nombre de la relacion
           <input maxLength={100} value={typeof edge.data?.name === 'string' ? edge.data.name : ''}
             disabled={structuralRelationship}

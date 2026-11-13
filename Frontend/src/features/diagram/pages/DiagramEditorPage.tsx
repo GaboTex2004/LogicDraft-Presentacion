@@ -136,6 +136,7 @@ import { deriveJoinTable, postgresType } from "../services/derivedJoinTable";
 import { updateEntityAttribute } from "../services/attributeEditing";
 import {
   commitRelationshipEdge,
+  manualRelationshipData,
   normalizeRelationshipEdge,
 } from "../services/relationshipCardinality";
 import type {
@@ -1524,11 +1525,7 @@ function DiagramEditorCanvas({
       const edge: DiagramEdge = {
         ...connection,
         id: crypto.randomUUID(),
-        data: {
-          sourceCardinality: "ONE_ONE",
-          targetCardinality: "ONE_ONE",
-          relationKind: selectedRelationKind,
-        },
+        data: manualRelationshipData(selectedRelationKind),
       };
       try {
         validateDiagramDocument(

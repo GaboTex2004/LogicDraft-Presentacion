@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { cardinalities, CARDINALITY_LABELS, normalizeRelationshipEdge, equivalentRelationship, commitRelationshipEdge, removeRelationshipEdges } from '../src/features/diagram/services/relationshipCardinality.ts'
+import { readFileSync } from 'node:fs'
+import { cardinalities, CARDINALITY_LABELS, normalizeRelationshipEdge, equivalentRelationship, commitRelationshipEdge, removeRelationshipEdges, manualRelationshipData, visualAggregationEnd } from '../src/features/diagram/services/relationshipCardinality.ts'
 import { applyDiagramOperations } from '../src/features/diagram/services/applyDiagramOperations.ts'
 import { deriveJoinTable } from '../src/features/diagram/services/derivedJoinTable.ts'
 
@@ -24,6 +25,33 @@ test('manual create defaults to one-one, marks dirty and publishes', () => {
   assert.equal(state[0].type, 'relationship')
   assert.equal(dirty, 1)
   assert.equal(events[0][0], 'EDGE_CREATED')
+})
+test('manual aggregation and composition persist the diamond at the target', () => {
+  for (const relationKind of ['AGGREGATION', 'COMPOSITION']) {
+    assert.deepEqual(manualRelationshipData(relationKind), {
+      sourceCardinality: 'ONE_ONE', targetCardinality: 'ONE_ONE', relationKind, aggregationEnd: 'TARGET',
+    })
+  }
+  assert.deepEqual(manualRelationshipData('ASSOCIATION'), {
+    sourceCardinality: 'ONE_ONE', targetCardinality: 'ONE_ONE', relationKind: 'ASSOCIATION',
+  })
+})
+test('visual diamond defaults to target and respects both explicit ends without mutating data', () => {
+  const missing = { relationKind: 'AGGREGATION' }
+  const before = structuredClone(missing)
+  assert.equal(visualAggregationEnd(missing), 'TARGET')
+  assert.equal(visualAggregationEnd({ relationKind: 'AGGREGATION', aggregationEnd: 'SOURCE' }), 'SOURCE')
+  assert.equal(visualAggregationEnd({ relationKind: 'COMPOSITION', aggregationEnd: 'TARGET' }), 'TARGET')
+  assert.deepEqual(missing, before)
+})
+test('relationship renderer keeps diamonds aligned to endpoints and other UML markers at target', () => {
+  const source = readFileSync(new URL('../src/features/diagram/components/RelationshipEdge.tsx', import.meta.url), 'utf8')
+  assert.match(source, /const aggregationEnd = visualAggregationEnd\(props\.data\)/)
+  assert.match(source, /markerStart=\{markerStart\}/)
+  assert.match(source, /markerEnd=\{markerEnd\}/)
+  assert.match(source, /id="uml-hollow-diamond"[\s\S]*?refX="1"[\s\S]*?refY="6"/)
+  assert.match(source, /id="uml-hollow-diamond-end"[\s\S]*?refX="15"[\s\S]*?refY="6"/)
+  assert.match(source, /relationKind === "GENERALIZATION" \|\| relationKind === "REALIZATION"/)
 })
 test('manual edit marks dirty once, emits EDGE_UPDATED, preserves metadata', () => {
   let state = [normalizeRelationshipEdge(edge({ custom: 42 }))], dirty = 0, events = []

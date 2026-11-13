@@ -17,6 +17,7 @@ import {
 import {
   cardinalities,
   CARDINALITY_LABELS,
+  visualAggregationEnd,
 } from "../services/relationshipCardinality";
 import {
   associationClassProjection,
@@ -426,7 +427,7 @@ export function RelationshipEdge(props: EdgeProps<DiagramEdge>) {
   const relationKind = props.data?.relationKind ?? "ASSOCIATION";
   const dashed =
     relationKind === "REALIZATION" || relationKind === "DEPENDENCY";
-  const aggregationEnd = props.data?.aggregationEnd ?? "SOURCE";
+  const aggregationEnd = visualAggregationEnd(props.data);
 
   const diamondStart =
     relationKind === "COMPOSITION"

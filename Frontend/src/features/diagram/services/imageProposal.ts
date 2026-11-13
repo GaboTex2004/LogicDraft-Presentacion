@@ -9,6 +9,15 @@ export interface ImageProposal {
   canApply: boolean
 }
 
+const PENDING_RELATION_PREFIX = 'Relación pendiente (no se añadirá): '
+
+export function partitionImageWarnings(warnings: readonly string[]) {
+  return {
+    pendingRelationships: warnings.filter(item => item.startsWith(PENDING_RELATION_PREFIX)),
+    informationalWarnings: warnings.filter(item => !item.startsWith(PENDING_RELATION_PREFIX)),
+  }
+}
+
 export function parseImageProposal(raw: unknown): ImageProposal {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Propuesta de imagen invalida.')
   const value = raw as Record<string, unknown>

@@ -36,6 +36,14 @@ class ImageDiagramReconcilerTest {
         return m("type", "ADD_CLASSIFIER", "name", name, "kind", kind, "attributes", attrs, "methods", List.of(), "literals", List.of());
     }
     static Map<String, Object> recognition(Map<String, Object>... ops) { return m("operations", List.of(ops), "warnings", List.of()); }
+    @SuppressWarnings("unchecked")
+    static List<Map<String, Object>> objectList(Object value) { return (List<Map<String, Object>>) value; }
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> map(Object value) { return (Map<String, Object>) value; }
+    static Map<String, Object> nodeById(Map<String, Object> document, Object id) {
+        return objectList(document.get("nodes")).stream()
+                .filter(node -> Objects.equals(id, node.get("id"))).findFirst().orElseThrow();
+    }
     static Map<String, Object> relation(String source, String target) {
         return m("type", "ADD_RELATIONSHIP", "source", source, "target", target, "relationKind", "ASSOCIATION",
                 "sourceMultiplicity", "1", "targetMultiplicity", "0..*");
@@ -516,6 +524,83 @@ class ImageDiagramReconcilerTest {
         assertEquals(1, result.conflicts().size(), () -> "Conflicts: " + result.conflicts());
         assertTrue(result.conflicts().getFirst().contains("Multiplicidad ausente o no soportada: Devolucion → compra"));
         assertEquals(original, result.document());
+    }
+
+    @Test void keepsIndependentClassifierAdditionsWhenAssociationIsIncomplete() {
+        var original = m("version", 1, "nodes", List.of(), "edges", List.of());
+        var before = ImageDiagramReconciler.copy(original);
+        var seen = recognition(
+                classifier("Persona", "CLASS", List.of(m("name", "nombre", "type", "String"))),
+                classifier("Docente", "CLASS", List.of()),
+                m("type", "ADD_RELATIONSHIP", "source", "Persona", "target", "Docente",
+                        "relationKind", "ASSOCIATION"));
+
+        var result = ImageDiagramReconciler.reconcile(original, seen);
+
+        assertTrue(result.canApply(), () -> result.conflicts().toString());
+        assertTrue(result.conflicts().isEmpty());
+        assertEquals(2, ((List<?>) result.document().get("nodes")).size());
+        assertTrue(((List<?>) result.document().get("edges")).isEmpty());
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains(
+                "Relación pendiente (no se añadirá): Persona")));
+        assertEquals(before, original);
+        DiagramDocumentValidator.validate(result.document());
+
+        var repeated = ImageDiagramReconciler.reconcile(result.document(), seen);
+        assertFalse(repeated.canApply());
+        assertTrue(repeated.additions().isEmpty());
+        assertTrue(((List<?>) repeated.document().get("edges")).isEmpty());
+        assertEquals(result.document(), repeated.document());
+    }
+
+    @Test void keepsIndependentClassifierAdditionsWhenDiamondEndIsUnknown() {
+        var original = base();
+        var result = ImageDiagramReconciler.reconcile(original, recognition(
+                classifier("Pedido", "CLASS", List.of()),
+                m("type", "ADD_RELATIONSHIP", "source", "Cliente", "target", "Pedido",
+                        "relationKind", "AGGREGATION", "sourceMultiplicity", "1",
+                        "targetMultiplicity", "0..*")));
+
+        assertTrue(result.canApply(), () -> result.conflicts().toString());
+        assertTrue(result.conflicts().isEmpty());
+        assertTrue(((List<?>) result.document().get("edges")).isEmpty());
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("extremo del rombo")));
+    }
+
+    @Test void createsGeneralizationsWithoutMultiplicitiesInChildToParentDirection() {
+        var empty = m("version", 1, "nodes", List.of(), "edges", List.of());
+        var result = ImageDiagramReconciler.reconcile(empty, recognition(
+                classifier("Persona", "CLASS", List.of()),
+                classifier("Docente", "CLASS", List.of()),
+                classifier("Estudiante", "CLASS", List.of()),
+                m("type", "ADD_RELATIONSHIP", "source", "Docente", "target", "Persona",
+                        "relationKind", "GENERALIZATION"),
+                m("type", "ADD_RELATIONSHIP", "source", "Estudiante", "target", "Persona",
+                        "relationKind", "GENERALIZATION")));
+
+        assertTrue(result.canApply(), () -> result.conflicts().toString());
+        var createdEdges = objectList(result.document().get("edges"));
+        assertEquals(2, createdEdges.size());
+        assertTrue(createdEdges.stream().allMatch(edge ->
+                "GENERALIZATION".equals(map(edge.get("data")).get("relationKind"))));
+        assertTrue(createdEdges.stream().allMatch(edge -> "Persona".equals(
+                map(nodeById(result.document(), edge.get("target")).get("data")).get("name"))));
+    }
+
+    @Test void preservesAggregationAndCompositionDiamondEnds() {
+        for (String kind : List.of("AGGREGATION", "COMPOSITION")) {
+            for (String end : List.of("SOURCE", "TARGET")) {
+                var result = ImageDiagramReconciler.reconcile(base(), recognition(
+                        classifier("Pedido", "CLASS", List.of()),
+                        m("type", "ADD_RELATIONSHIP", "source", "Cliente", "target", "Pedido",
+                                "relationKind", kind, "sourceMultiplicity", "1",
+                                "targetMultiplicity", "0..*", "aggregationEnd", end)));
+                assertTrue(result.canApply(), () -> result.conflicts().toString());
+                var edge = objectList(result.document().get("edges")).getFirst();
+                assertEquals(kind, map(edge.get("data")).get("relationKind"));
+                assertEquals(end, map(edge.get("data")).get("aggregationEnd"));
+            }
+        }
     }
 
     @Test void recognizesReadOnlyDerivedJoinTableOnExistingManyToManyEdgeWithoutFalseConflict() {

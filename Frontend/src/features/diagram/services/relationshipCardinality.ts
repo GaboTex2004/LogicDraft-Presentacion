@@ -1,4 +1,4 @@
-import { DIAGRAM_CARDINALITIES, type DiagramCardinality, type DiagramEdge } from '../types/diagram.types.ts'
+import { DIAGRAM_CARDINALITIES, type DiagramCardinality, type DiagramEdge, type RelationshipData, type UmlRelationKind } from '../types/diagram.types.ts'
 
 export const CARDINALITY_LABELS: Record<DiagramCardinality, string> = {
   ZERO_ONE: '0..1', ONE_ONE: '1..1', ZERO_MANY: '0..N', ONE_MANY: '1..N',
@@ -27,6 +27,19 @@ export function normalizeRelationshipEdge(edge: DiagramEdge): DiagramEdge {
   delete normalized.markerEnd
   delete normalized.markerStart
   return normalized
+}
+
+export function visualAggregationEnd(data: RelationshipData | undefined): 'SOURCE' | 'TARGET' {
+  return data?.aggregationEnd ?? 'TARGET'
+}
+
+export function manualRelationshipData(relationKind: UmlRelationKind): RelationshipData {
+  return {
+    sourceCardinality: 'ONE_ONE',
+    targetCardinality: 'ONE_ONE',
+    relationKind,
+    ...(['AGGREGATION', 'COMPOSITION'].includes(relationKind) ? { aggregationEnd: 'TARGET' as const } : {}),
+  }
 }
 export function equivalentRelationship(a: DiagramEdge, b: DiagramEdge): boolean {
   const ac = cardinalities(a.data), bc = cardinalities(b.data)

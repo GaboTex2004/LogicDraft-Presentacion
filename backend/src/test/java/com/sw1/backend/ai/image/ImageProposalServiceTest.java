@@ -106,6 +106,23 @@ class ImageProposalServiceTest {
         assertThrows(DiagramConflictException.class, () -> service.accept(10L, proposal.proposalId(), "browser"));
         verify(diagrams, times(1)).saveAndFlush(any());
     }
+    @Test void acceptsSafeClassifierSubsetAndLeavesIncompleteRelationshipPending() {
+        var proposal = service.prepare(service.load(10L), recognition(
+                classifier("Pedido", "CLASS", List.of(m("name", "numero", "type", "String"))),
+                m("type", "ADD_RELATIONSHIP", "source", "Cliente", "target", "Pedido",
+                        "relationKind", "ASSOCIATION")));
+
+        assertTrue(proposal.canApply(), () -> proposal.conflicts().toString());
+        assertTrue(proposal.conflicts().isEmpty());
+        assertTrue(proposal.warnings().stream().anyMatch(warning -> warning.startsWith("Relación pendiente")));
+
+        service.accept(10L, proposal.proposalId(), "browser");
+
+        assertEquals(2, objectList(committed.get("nodes")).size());
+        assertTrue(objectList(committed.get("edges")).isEmpty());
+        assertEquals("Pedido", map(objectList(committed.get("nodes")).get(1).get("data")).get("name"));
+        assertEquals(5, revision);
+    }
     @Test void staleRevisionCannotBeMergedOrSaved() {
         var proposal = proposal(); revision++;
         assertThrows(DiagramConflictException.class, () -> service.accept(10L, proposal.proposalId(), "browser"));

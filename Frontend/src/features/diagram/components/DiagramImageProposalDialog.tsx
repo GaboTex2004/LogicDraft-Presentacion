@@ -1,4 +1,4 @@
-import type { ImageProposal } from '../services/imageProposal'
+import { partitionImageWarnings, type ImageProposal } from '../services/imageProposal'
 
 export function DiagramImageProposalDialog({ proposal, busy, error, onAccept, onCancel }: {
   proposal: ImageProposal | null
@@ -8,11 +8,13 @@ export function DiagramImageProposalDialog({ proposal, busy, error, onAccept, on
   onCancel: () => void
 }) {
   if (!proposal) return null
+  const { pendingRelationships, informationalWarnings } = partitionImageWarnings(proposal.warnings)
   const sections: [string, string[]][] = [
     ['Elementos existentes encontrados', proposal.matched],
-    ['Altas propuestas: clasificadores, miembros y relaciones', proposal.additions],
+    ['Elementos válidos que se añadirán', proposal.additions],
+    ['Relaciones incompletas que quedarán pendientes', pendingRelationships],
     ['Conflictos (impiden confirmar)', proposal.conflicts],
-    ['Advertencias y elementos no soportados', proposal.warnings],
+    ['Advertencias informativas', informationalWarnings],
   ]
   return <div className="association-dialog-backdrop" role="presentation">
     <section className="association-dialog" role="dialog" aria-modal="true" aria-labelledby="image-proposal-title">

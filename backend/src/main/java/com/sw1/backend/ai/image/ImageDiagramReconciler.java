@@ -19,6 +19,7 @@ public final class ImageDiagramReconciler {
     private final List<String> matched = new ArrayList<>(), additions = new ArrayList<>(),
             conflicts = new ArrayList<>(), warnings = new ArrayList<>();
     private final Set<String> ids = new HashSet<>();
+    private static final String PENDING_RELATION_PREFIX = "Relación pendiente (no se añadirá): ";
 
     private ImageDiagramReconciler(Map<String, Object> base) {
         document = copy(base);
@@ -809,7 +810,7 @@ public final class ImageDiagramReconciler {
                 String rawValue = (String) observed.get(end + "Multiplicity");
                 String value = rawValue == null ? null : canonicalMultiplicity(rawValue);
                 if (value == null || !value.matches("(?:\\d+|\\*|\\d+\\.\\.(?:\\d+|\\*))")) {
-                    conflicts.add("Multiplicidad ausente o no soportada: " + label); return;
+                    pendingRelationship(label, "multiplicidad ausente o ilegible"); return;
                 }
                 if (value.contains("..") && !value.endsWith("*")) {
                     String[] bounds = value.split("\\.\\.");
@@ -826,13 +827,19 @@ public final class ImageDiagramReconciler {
             conflicts.add("Multiplicidad en relacion no multiplicativa: " + label); return;
         }
         if (Set.of("AGGREGATION", "COMPOSITION").contains(kind)) {
-            if (observed.get("aggregationEnd") == null) { conflicts.add("Extremo del diamante incierto: " + label); return; }
+            if (observed.get("aggregationEnd") == null) {
+                pendingRelationship(label, "extremo del rombo ausente o ilegible"); return;
+            }
             data.put("aggregationEnd", observed.get("aggregationEnd"));
         } else if (observed.get("aggregationEnd") != null) { conflicts.add("Diamante incompatible: " + label); return; }
         edges.add(new LinkedHashMap<>(Map.of("id", id(), "source", source, "target", target,
                 "type", "relationship", "data", data)));
         document.put("version", 2);
         additions.add("Relacion " + kind + ": " + label);
+    }
+
+    private void pendingRelationship(String label, String reason) {
+        warnings.add(PENDING_RELATION_PREFIX + label + " (" + reason + ").");
     }
 
     private boolean hasEdgeBetween(Object source, Object target) {

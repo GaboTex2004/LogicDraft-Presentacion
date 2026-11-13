@@ -61,9 +61,28 @@ REGLA CRITICA PARA CLASES ASOCIATIVAS (existentes o nuevas):
   visibles en ambos extremos (como "0..N", "1..N", "0..*", "1..*", "1", "1..1", "0..1").
 - Ademas emite el ADD_CLASSIFIER con kind "ASSOCIATION_CLASS" y todos sus atributos
   visibles para la caja asociativa.
+REGLAS CRITICAS PARA RELACIONES UML:
+- ASSOCIATION: linea continua sin rombo. Conserva la orientacion visual source -> target,
+  pero no inventes flechas ni extremos.
+- AGGREGATION: linea continua con rombo vacio. relationKind="AGGREGATION" y
+  aggregationEnd="SOURCE" si el rombo esta junto a source, o "TARGET" si esta junto
+  a target.
+- COMPOSITION: linea continua con rombo relleno. relationKind="COMPOSITION" y
+  aggregationEnd se obtiene de la ubicacion real del rombo con la misma regla.
+- GENERALIZATION: linea continua con triangulo hueco. El triangulo apunta al padre;
+  emite siempre source=hija y target=padre, sin multiplicidades ni aggregationEnd.
+- REALIZATION: linea discontinua con triangulo hueco. El triangulo apunta a la interfaz
+  o contrato; emite source=implementacion y target=interfaz, sin multiplicidades.
+- DEPENDENCY: linea discontinua con flecha abierta. Emite source=dependiente y
+  target=proveedor, sin multiplicidades.
+No confundas un triangulo hueco con un rombo vacio ni una flecha abierta con un
+triangulo. Sigue cada linea hasta las dos cajas antes de decidir sus extremos.
 En toda ADD_RELATIONSHIP de tipo ASSOCIATION, AGGREGATION o COMPOSITION incluye
-sourceMultiplicity y targetMultiplicity visibles. aggregationEnd indica el extremo
-del diamante SOURCE o TARGET.
+sourceMultiplicity y targetMultiplicity solo cuando sean visibles y legibles.
+aggregationEnd se usa unicamente para AGGREGATION y COMPOSITION, y solo cuando la
+ubicacion del rombo sea inequivoca. Si una multiplicidad, el tipo, un extremo o el
+simbolo no es legible, omite el campo incierto (o la relacion completa si no puedes
+identificarla con seguridad) y explica la incertidumbre en warnings.
 No devuelvas IDs, posiciones ni documentos de reemplazo. Nunca DELETE, UPDATE,
 RENAME, conversiones ni instrucciones ejecutables. Lista en warnings cualquier
 parte ilegible o no representable. No inventes informacion para completar el UML.
